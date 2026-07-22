@@ -1,46 +1,49 @@
+OUTPUT_ARCH(riscv)
+ENTRY(_start)
+
 MEMORY
 {
-	ram (rwx) : ORIGIN = 0x00000000, LENGTH = 0xffffffff
+	imem (rx)  : ORIGIN = 0x00000000, LENGTH = 0x00001000
+	dmem (rwx) : ORIGIN = 0x00001000, LENGTH = 0x00001000
 }
 
 SECTIONS
 {
-	. = 0x0;
-
 	.text : {
+		KEEP(*(.text.start))
 		*(.text)
 		*(.text.*)
-	} > ram
-
-	. = ALIGN(0x4000);
+	} > imem
 
 	.rodata : {
+		. = ALIGN(4);
 		*(.rodata)
 		*(.rodata.*)
-	} > ram
+	} > dmem
 
 	.data : {
+		. = ALIGN(4);
 		*(.data)
 		*(.data.*)
-	} > ram
-
-	.sdata : {
 		*(.sdata)
 		*(.sdata.*)
-	} > ram
-
-	.sbss (NOLOAD) : {
-		*(.sbss)
-		*(.sbss.*)
-	} > ram
+	} > dmem
 
 	.bss (NOLOAD) : {
+		. = ALIGN(4);
+		__bss_start = .;
+		*(.sbss)
+		*(.sbss.*)
 		*(.bss)
 		*(.bss.*)
 		*(COMMON)
-	} > ram
+		__bss_end = .;
+	} > dmem
 
-	.riscv.attributes : {
+	__stack_top = ORIGIN(dmem) + LENGTH(dmem);
+
+	/DISCARD/ : {
+		*(.comment)
 		*(.riscv.attributes)
-	} > ram
+	}
 }

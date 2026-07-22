@@ -1,7 +1,7 @@
 ROOTDIR ?= $(abspath ..)
 APPS := microbench minisudoku pipesafe pipeunsafe1 pipeunsafe2
 APP ?= minisudoku
-MARCH ?= rv32im
+MARCH ?= rv32i
 MABI ?= ilp32
 RISCV_PREFIX ?= riscv64-unknown-elf-
 
@@ -20,15 +20,24 @@ S_SOURCES := $(wildcard $(APP_DIR)/*.s)
 STARTUP := $(if $(strip $(C_SOURCES)),$(CURDIR)/runtime/entry.s,)
 
 COMMON_FLAGS := \
-	-mcmodel=medany \
-	-nostdlib \
-	-nostartfiles \
+	-O2 \
 	-march=$(MARCH) \
 	-mabi=$(MABI) \
+	-mcmodel=medany \
+	-msmall-data-limit=0 \
 	-mstrict-align \
-	-static \
-	-fvisibility=hidden
-LDFLAGS := $(COMMON_FLAGS) -Wl,-T,$(LINKER)
+	-ffreestanding \
+	-fno-builtin \
+	-fno-stack-protector \
+	-fdata-sections \
+	-ffunction-sections \
+	-nostdlib \
+	-nostartfiles \
+	-static
+LDFLAGS := \
+	-Wl,-T,$(LINKER) \
+	-Wl,--gc-sections \
+	-Wl,--build-id=none
 OBJDUMP_FLAGS := -d -Mno-aliases
 
 .PHONY: all check clean list
@@ -46,10 +55,11 @@ check:
 $(ELF): $(C_SOURCES) $(S_SOURCES) $(STARTUP) $(LINKER)
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(COMMON_FLAGS) $(STARTUP) $(C_SOURCES) $(S_SOURCES) \
-		-Wl,-T,$(LINKER) -o $@
+		$(LDFLAGS) -o $@
 
 $(BIN): $(ELF)
-	$(OBJCOPY) -O binary $< $@
+	$(OBJCOPY) -O binary --gap-fill 0 --pad-to 0x2000 $< $@
+	@test "$$(wc -c < $@)" -eq 8192 || { echo "Unexpected binary size: $@" >&2; exit 2; }
 
 $(DUMP): $(ELF)
 	$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@

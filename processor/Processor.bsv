@@ -1,216 +1,299 @@
 import FIFO::*;
-import FIFOF::*;
-import SpecialFIFOs::*;
 
-
-import RFile::*;
 import Defines::*;
 import Decode::*;
 import Execute::*;
-
-import Scoreboard::*;
-import BranchPredictor::*;
+import RFile::*;
 
 typedef struct {
 	Word pc;
-} F2D deriving(Bits, Eq);
-
-typedef struct {
-	Word pc;
-	DecodedInst dInst; 
-	Word rVal1; 
-	Word rVal2;
-} D2E deriving(Bits, Eq);
-
-typedef struct {
-	Word pc;
+	Word instruction;
+	Word nextPc;
+	Word addr;
 	RIndx dst;
-
-	Bool isMem;
-
-	Word data;
+	Bool writeDst;
+	Bool load;
+	AccessSize accessSize;
 	Bool extendSigned;
-	SizeType size;
-} E2M deriving(Bits,Eq);
+} PendingMemory deriving (Bits, Eq, FShow);
+
+typedef struct {
+	Word pc;
+	Word instruction;
+	Word nextPc;
+	RIndx dst;
+	Bool writeDst;
+	Word data;
+} WritebackInfo deriving (Bits, Eq, FShow);
 
 interface ProcessorIfc;
-	method ActionValue#(MemReq32) iMemReq;
-	method Action iMemResp(Word data);
-	method ActionValue#(MemReq32) dMemReq;
-	method Action dMemResp(Word data);
+	method ActionValue#(MemReq) iMemReq;
+	method Action iMemResp(MemResp response);
+	method ActionValue#(MemReq) dMemReq;
+	method Action dMemResp(MemResp response);
+	method ActionValue#(TrapInfo) trap;
 endinterface
+
+function PendingMemory defaultPendingMemory();
+	return PendingMemory {
+		pc: 0,
+		instruction: 0,
+		nextPc: 0,
+		addr: 0,
+		dst: 0,
+		writeDst: False,
+		load: False,
+		accessSize: WordAccess,
+		extendSigned: False
+	};
+endfunction
+
+function WritebackInfo defaultWritebackInfo();
+	return WritebackInfo {
+		pc: 0,
+		instruction: 0,
+		nextPc: 0,
+		dst: 0,
+		writeDst: False,
+		data: 0
+	};
+endfunction
+
+function TrapInfo makeTrap(Word pc, TrapCause cause, Word value);
+	return TrapInfo {
+		pc: pc,
+		cause: cause,
+		value: value
+	};
+endfunction
 
 (* synthesize *)
 module mkProcessor(ProcessorIfc);
-	Reg#(Word)  pc <- mkReg(0);
-	RFile2R1W   rf <- mkRFile2R1W;
+	Reg#(Word) pc <- mkReg(0);
+	Reg#(ProcessorState) state <- mkReg(FetchRequest);
+	RFile2R1W registerFile <- mkRFile2R1W;
 
-	BranchPredictorIfc branch_predictor <- mkBranchPredictor;
+	Reg#(Word) instructionR <- mkReg(0);
+	Reg#(DecodedInst) decodedR <- mkReg(defaultDecodedInst());
+	Reg#(Word) src1R <- mkReg(0);
+	Reg#(Word) src2R <- mkReg(0);
+	Reg#(PendingMemory) pendingMemoryR <- mkReg(defaultPendingMemory());
+	Reg#(WritebackInfo) writebackR <- mkReg(defaultWritebackInfo());
 
-	Reg#(ProcStage) stage <- mkReg(Fetch);
+	FIFO#(MemReq) iMemReqQ <- mkFIFO;
+	FIFO#(MemResp) iMemRespQ <- mkFIFO;
+	FIFO#(MemReq) dMemReqQ <- mkFIFO;
+	FIFO#(MemResp) dMemRespQ <- mkFIFO;
+	FIFO#(TrapInfo) trapQ <- mkFIFO;
 
-	FIFOF#(F2D) f2d <- mkSizedFIFOF(2);
-    FIFOF#(D2E) d2e <- mkSizedFIFOF(2);
-	FIFOF#(E2M) e2m <- mkSizedFIFOF(2);
+	Reg#(Bit#(64)) cycleCnt <- mkReg(0);
+	Reg#(Bit#(64)) instructionCnt <- mkReg(0);
 
-	FIFO#(MemReq32) imemReqQ <- mkFIFO;
-	FIFO#(Word) imemRespQ <- mkFIFO;
-	FIFO#(MemReq32) dmemReqQ <- mkFIFO;
-	FIFO#(Word) dmemRespQ <- mkFIFO;
-
-
-	Reg#(Bit#(32)) cycles <- mkReg(0);
-	Reg#(Bit#(32)) fetchCnt <- mkReg(0);
-	Reg#(Bit#(32)) execCnt <- mkReg(0);
-	rule incCycle;
-		cycles <= cycles + 1;
+	rule countCycle ( state != Trapped );
+		cycleCnt <= cycleCnt + 1;
 	endrule
 
-	rule doFetch (stage == Fetch);
-		//Word curpc = branch_predictor.getNextPc(pc);
-		Word curpc = pc;
-
-		imemReqQ.enq(MemReq32{write:False,addr:truncate(pc),word:?,bytes:3});
-		f2d.enq(F2D {pc: curpc});
-
-		$write( "[0x%8x:0x%4x] Fetching instruction count 0x%4x\n", cycles, curpc, fetchCnt );
-		fetchCnt <= fetchCnt + 1;
-		stage <= Decode;
-	endrule
-
-
-
-
-
-	rule doDecode (stage == Decode);
-		let x = f2d.first;
-		f2d.deq;
-		Word inst = imemRespQ.first;
-		imemRespQ.deq;
-
-		let dInst = decode(inst);
-		let rVal1 = rf.rd1(dInst.src1);
-		let rVal2 = rf.rd2(dInst.src2);
-
-		d2e.enq(D2E {pc: x.pc, dInst: dInst, rVal1: rVal1, rVal2: rVal2});
-
-		$write( "[0x%8x:0x%04x] decoding 0x%08x\n", cycles, x.pc, inst );
-		stage <= Execute;
-	endrule
-
-
-
-
-
-
-	rule doExecute (stage == Execute);
-		D2E x = d2e.first; 
-		d2e.deq;
-		Word curpc = x.pc; 
-		Word rVal1 = x.rVal1; Word rVal2 = x.rVal2; 
-		DecodedInst dInst = x.dInst;
-
-		let eInst = exec(dInst, rVal1, rVal2, curpc);
-
-		pc <= eInst.nextPC;
-		branch_predictor.setPrediction(curpc, eInst.nextPC);
-
-		execCnt <= execCnt + 1;
-		$write( "[0x%8x:0x%04x] Executing\n", cycles, curpc );
-		
-		if (eInst.iType == Unsupported) begin
-			$display("Reached unsupported instruction");
-			$display("Total Clock Cycles = %d\nTotal Instruction Count = %d", cycles, execCnt);
-			$display("Dumping the state of the processor");
-			$display("pc = 0x%x", x.pc);
-			//rf.displayRFileInSimulation;
-			$display("Quitting simulation.");
-			$finish;
+	//------------------------------------------------------------------------------------
+	// [FETCH]
+	// Request and receive one aligned 32-bit instruction
+	//------------------------------------------------------------------------------------
+	rule fetchRequest ( state == FetchRequest );
+		if ( pc[1:0] != 0 ) begin
+			trapQ.enq(makeTrap(pc, InstructionAddressMisaligned, pc));
+			state <= Trapped;
+		end else begin
+			iMemReqQ.enq(MemReq {
+				addr: pc,
+				data: 0,
+				size: WordAccess,
+				write: False
+			});
+			state <= FetchResponse;
 		end
+	endrule
 
-		if (eInst.iType == LOAD) begin
-			dmemReqQ.enq(MemReq32{write:False,addr:truncate(eInst.addr), word:?, bytes:dInst.size});
-			e2m.enq(E2M{dst:eInst.dst,extendSigned:dInst.extendSigned,size:dInst.size, pc:curpc, data:0, isMem: True});
-			stage <= Writeback;
-			$write( "[0x%8x:0x%04x] \t\t Mem read from 0x%08x\n", cycles, curpc, eInst.addr );
-		end 
-		else if (eInst.iType == STORE) begin
-			dmemReqQ.enq(MemReq32{write:True,addr:truncate(eInst.addr), word:eInst.data, bytes:dInst.size});
-			$write( "[0x%8x:0x%04x] \t\t Mem write 0x%08x to 0x%08x\n", cycles, curpc, eInst.data, eInst.addr );
-			//e2m.enq(E2M{dst:0,extendSigned:?,size:?, pc:curpc, data:?, isMem: False});
-			stage <= Fetch;
+	rule fetchResponse ( state == FetchResponse );
+		let response = iMemRespQ.first;
+		iMemRespQ.deq;
+
+		if ( response.fault ) begin
+			trapQ.enq(makeTrap(pc, InstructionAccessFault, pc));
+			state <= Trapped;
+		end else begin
+			instructionR <= response.data;
+			state <= DecodeStage;
 		end
-		else begin
-			if(eInst.writeDst) begin
-				e2m.enq(E2M{dst:eInst.dst,extendSigned:?,size:?, pc:curpc, data:eInst.data, isMem: False});
-				stage <= Writeback;
+	endrule
+
+	//------------------------------------------------------------------------------------
+	// [DECODE]
+	// Validate the complete RV32I encoding and read architectural registers
+	//------------------------------------------------------------------------------------
+	rule decodeInstruction ( state == DecodeStage );
+		DecodedInst decoded = decode(instructionR);
+
+		if ( !decoded.valid ) begin
+			trapQ.enq(makeTrap(pc, IllegalInstruction, instructionR));
+			state <= Trapped;
+		end else begin
+			decodedR <= decoded;
+			src1R <= registerFile.rd1(decoded.src1);
+			src2R <= registerFile.rd2(decoded.src2);
+			state <= ExecuteStage;
+		end
+	endrule
+
+	//------------------------------------------------------------------------------------
+	// [EXECUTE]
+	// Execute arithmetic and control operations or issue one data-memory request
+	//------------------------------------------------------------------------------------
+	rule executeInstruction ( state == ExecuteStage );
+		ExecInst executed = execute(decodedR, src1R, src2R, pc);
+
+		if ( decodedR.instructionType == EnvironmentCallInst ) begin
+			trapQ.enq(makeTrap(pc, EnvironmentCall, 0));
+			state <= Trapped;
+		end else if ( decodedR.instructionType == BreakpointInst ) begin
+			trapQ.enq(makeTrap(pc, Breakpoint, pc));
+			state <= Trapped;
+		end else if ( executed.controlTransfer && executed.nextPc[1:0] != 0 ) begin
+			trapQ.enq(makeTrap(pc, InstructionAddressMisaligned, executed.nextPc));
+			state <= Trapped;
+		end else if ( decodedR.instructionType == Load ||
+				decodedR.instructionType == Store ) begin
+			Bool aligned = isAddressAligned(executed.addr, decodedR.accessSize);
+
+			if ( !aligned ) begin
+				TrapCause cause = (decodedR.instructionType == Load) ?
+					LoadAddressMisaligned : StoreAddressMisaligned;
+				trapQ.enq(makeTrap(pc, cause, executed.addr));
+				state <= Trapped;
 			end else begin
-				stage <= Fetch;
-				//e2m.enq(E2M{dst:0,extendSigned:?,size:?, pc:curpc, data:?, isMem: False});
+				dMemReqQ.enq(MemReq {
+					addr: executed.addr,
+					data: executed.data,
+					size: decodedR.accessSize,
+					write: (decodedR.instructionType == Store)
+				});
+				pendingMemoryR <= PendingMemory {
+					pc: pc,
+					instruction: instructionR,
+					nextPc: executed.nextPc,
+					addr: executed.addr,
+					dst: decodedR.dst,
+					writeDst: decodedR.writeDst,
+					load: (decodedR.instructionType == Load),
+					accessSize: decodedR.accessSize,
+					extendSigned: decodedR.extendSigned
+				};
+				state <= DataResponse;
 			end
+		end else begin
+			writebackR <= WritebackInfo {
+				pc: pc,
+				instruction: instructionR,
+				nextPc: executed.nextPc,
+				dst: executed.dst,
+				writeDst: executed.writeDst,
+				data: executed.data
+			};
+			state <= WritebackStage;
 		end
 	endrule
 
+	//------------------------------------------------------------------------------------
+	// [MEMORY]
+	// Complete a load or store only after the memory system reports success
+	//------------------------------------------------------------------------------------
+	rule receiveDataResponse ( state == DataResponse );
+		let response = dMemRespQ.first;
+		dMemRespQ.deq;
+		PendingMemory pending = pendingMemoryR;
 
-
-
-
-
-
-	rule doWriteback (stage == Writeback);
-		e2m.deq;
-		let r = e2m.first;
-
-		Word dw = r.data;
-		if ( r.isMem ) begin
-			dmemRespQ.deq;
-			let data = dmemRespQ.first;
-
-			if ( r.size == 0 ) begin
-				if ( r.extendSigned ) begin
-					Int#(8) id = unpack(data[7:0]);
-					Int#(32) ide = signExtend(id);
-					dw = pack(ide);
-				end else begin
-					dw = zeroExtend(data[7:0]);
-				end
-			end else if ( r.size == 1 ) begin
-				if ( r.extendSigned ) begin
-					Int#(16) id = unpack(data[15:0]);
-					Int#(32) ide = signExtend(id);
-					dw = pack(ide);
-				end else begin
-					dw = zeroExtend(data[15:0]);
-				end
-			end else begin
-				dw = data;
+		if ( response.fault ) begin
+			TrapCause cause = pending.load ? LoadAccessFault : StoreAccessFault;
+			trapQ.enq(makeTrap(pending.pc, cause, pending.addr));
+			state <= Trapped;
+		end else begin
+			Word data = 0;
+			if ( pending.load ) begin
+				case ( pending.accessSize )
+					ByteAccess: begin
+						if ( pending.extendSigned ) begin
+							Int#(8) signedData = unpack(response.data[7:0]);
+							data = pack(signExtend(signedData));
+						end else begin
+							data = zeroExtend(response.data[7:0]);
+						end
+					end
+					HalfAccess: begin
+						if ( pending.extendSigned ) begin
+							Int#(16) signedData = unpack(response.data[15:0]);
+							data = pack(signExtend(signedData));
+						end else begin
+							data = zeroExtend(response.data[15:0]);
+						end
+					end
+					WordAccess: begin data = response.data; end
+				endcase
 			end
-		end
-		
-		$write( "[0x%8x:0x%04x] Writeback writing %x to %d\n", cycles, r.pc, dw, r.dst );
-		rf.wr(r.dst, dw);
 
-		
-		stage <= Fetch;
+			writebackR <= WritebackInfo {
+				pc: pending.pc,
+				instruction: pending.instruction,
+				nextPc: pending.nextPc,
+				dst: pending.dst,
+				writeDst: pending.writeDst,
+				data: data
+			};
+			state <= WritebackStage;
+		end
 	endrule
 
+	//------------------------------------------------------------------------------------
+	// [WRITEBACK]
+	// Commit exactly one successfully completed instruction
+	//------------------------------------------------------------------------------------
+	rule writebackInstruction ( state == WritebackStage );
+		WritebackInfo info = writebackR;
 
+		if ( info.writeDst ) begin
+			registerFile.wr(info.dst, info.data);
+		end
+		pc <= info.nextPc;
+		instructionCnt <= instructionCnt + 1;
+		state <= FetchRequest;
 
+`ifdef RV32_TRACE
+		$display("RV32_COMMIT pc=%08x inst=%08x rd=%0d data=%08x write=%0d cycle=%0d instret=%0d",
+			info.pc, info.instruction, info.dst, info.data,
+			info.writeDst, cycleCnt, instructionCnt + 1);
+`endif
+	endrule
 
-
-
-	method ActionValue#(MemReq32) iMemReq;
-		imemReqQ.deq;
-		return imemReqQ.first;
+	method ActionValue#(MemReq) iMemReq;
+		let request = iMemReqQ.first;
+		iMemReqQ.deq;
+		return request;
 	endmethod
-	method Action iMemResp(Word data);
-		imemRespQ.enq(data);
+
+	method Action iMemResp(MemResp response);
+		iMemRespQ.enq(response);
 	endmethod
-	method ActionValue#(MemReq32) dMemReq;
-		dmemReqQ.deq;
-		return dmemReqQ.first;
+
+	method ActionValue#(MemReq) dMemReq;
+		let request = dMemReqQ.first;
+		dMemReqQ.deq;
+		return request;
 	endmethod
-	method Action dMemResp(Word data);
-		dmemRespQ.enq(data);
+
+	method Action dMemResp(MemResp response);
+		dMemRespQ.enq(response);
+	endmethod
+
+	method ActionValue#(TrapInfo) trap;
+		let info = trapQ.first;
+		trapQ.deq;
+		return info;
 	endmethod
 endmodule

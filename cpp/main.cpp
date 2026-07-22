@@ -5,128 +5,166 @@
 
 #include <queue>
 
+using namespace std;
+
+
+#define INSTRUCTION_MEMORY_SIZE 4096
+#define DATA_MEMORY_SIZE 4096
+#define BINARY_SIZE (INSTRUCTION_MEMORY_SIZE + DATA_MEMORY_SIZE)
+
 
 pthread_mutex_t gMutex;
 pthread_t gThread;
-std::queue<uint8_t> sw2hwQ;
-std::queue<uint8_t> hw2swQ;
+queue<uint8_t> swToHwQ;
+queue<uint8_t> hwToSwQ;
 bool gInitDone = false;
-uint8_t gOutIdx = 0xff;
-uint8_t gInIdx = 0xff;
+uint8_t gOutputIdx = 0xff;
+uint8_t gInputIdx = 0xff;
 
 
-void uartSend( uint8_t data );
-uint32_t uartRecv( void );
-void *softwareMain( void *arg );
+int softwareMain();
+void *softwareThread(void *arg);
 
 
-void initialize( void ) {
+void initialize() {
 	if ( gInitDone ) return;
 
-	pthread_mutex_init(&gMutex, NULL);
-	if ( pthread_create(&gThread, NULL, softwareMain, NULL) != 0 ) {
-		printf( "Failed to start the software loader thread.\n" );
+	if ( pthread_mutex_init(&gMutex, NULL) != 0 ) {
+		printf( "Failed to initialize the UART mutex.\n" );
 		fflush( stdout );
 		exit(1);
 	}
 
 	gInitDone = true;
+	if ( pthread_create(&gThread, NULL, softwareThread, NULL) != 0 ) {
+		gInitDone = false;
+		printf( "Failed to create the UART loader thread.\n" );
+		fflush( stdout );
+		exit(1);
+	}
 }
 
+void *softwareThread(void *arg) {
+	(void)arg;
+	softwareMain();
+	return NULL;
+}
 
-extern "C" uint32_t bdpiUartGet( uint8_t idx ) {
+extern "C" uint32_t bdpiUartGet(uint8_t idx) {
 	initialize();
 
-	uint32_t data = 0xffffffff;
+	uint32_t result = 0xffffffff;
 	pthread_mutex_lock(&gMutex);
-	if ( idx != gOutIdx && !sw2hwQ.empty() ) {
-		data = sw2hwQ.front();
-		sw2hwQ.pop();
-		gOutIdx = (uint8_t)((gOutIdx + 1) & 0xff);
+	if ( idx != gOutputIdx && !swToHwQ.empty() ) {
+		result = swToHwQ.front();
+		swToHwQ.pop();
+		gOutputIdx = (gOutputIdx + 1) & 0xff;
 	}
 	pthread_mutex_unlock(&gMutex);
-	return data;
+	return result;
 }
 
-
-extern "C" void bdpiUartPut( uint32_t dataIn ) {
+extern "C" void bdpiUartPut(uint32_t value) {
 	initialize();
 
-	uint8_t idx = (uint8_t)((dataIn >> 8) & 0xff);
-	uint8_t data = (uint8_t)(dataIn & 0xff);
-	if ( idx != gInIdx ) {
-		gInIdx = idx;
+	uint8_t idx = (value >> 8) & 0xff;
+	uint8_t data = value & 0xff;
+	if ( idx != gInputIdx ) {
+		gInputIdx = idx;
 		pthread_mutex_lock(&gMutex);
-		hw2swQ.push(data);
+		hwToSwQ.push(data);
 		pthread_mutex_unlock(&gMutex);
 	}
 }
 
-
-uint32_t uartRecv( void ) {
+uint32_t uartReceive() {
 	initialize();
 
-	uint32_t data = 0xffffffff;
+	uint32_t result = 0xffffffff;
 	pthread_mutex_lock(&gMutex);
-	if ( !hw2swQ.empty() ) {
-		data = hw2swQ.front();
-		hw2swQ.pop();
+	if ( !hwToSwQ.empty() ) {
+		result = hwToSwQ.front();
+		hwToSwQ.pop();
 	}
 	pthread_mutex_unlock(&gMutex);
-	return data;
+	return result;
 }
 
-
-void uartSend( uint8_t data ) {
+void uartSend(uint8_t data) {
 	initialize();
 
 	pthread_mutex_lock(&gMutex);
-	sw2hwQ.push(data);
+	swToHwQ.push(data);
 	pthread_mutex_unlock(&gMutex);
 }
 
-
-void *softwareMain( void *arg ) {
-	(void)arg;
-
-	const char *binPath = getenv("BLUERV32_BIN");
-	if ( binPath == NULL || binPath[0] == '\0' ) {
-		binPath = "build/software/minisudoku/minisudoku.bin";
-	}
-
-	FILE *binFile = fopen(binPath, "rb");
-	if ( binFile == NULL ) {
-		printf( "Binary file not found: %s\n", binPath );
+int softwareMain() {
+	const char *binaryPath = getenv("BLUERV32_BIN");
+	if ( binaryPath == NULL ) {
+		printf( "BLUERV32_BIN is not set.\n" );
 		fflush( stdout );
 		exit(1);
 	}
 
-	uint32_t byteOffset = 0;
-	uint8_t data = 0;
-	while ( fread(&data, 1, 1, binFile) == 1 ) {
-		if ( byteOffset < 4096 ) {
+	FILE *binaryFile = fopen(binaryPath, "rb");
+	if ( binaryFile == NULL ) {
+		printf( "Binary file not found: %s\n", binaryPath );
+		fflush( stdout );
+		exit(1);
+	}
+
+	if ( fseek(binaryFile, 0, SEEK_END) != 0 ) {
+		printf( "Failed to seek binary file: %s\n", binaryPath );
+		fflush( stdout );
+		exit(1);
+	}
+	long binarySize = ftell(binaryFile);
+	if ( binarySize != BINARY_SIZE ) {
+		printf( "Expected an %d-byte binary, received %ld bytes: %s\n",
+			BINARY_SIZE, binarySize, binaryPath );
+		fflush( stdout );
+		exit(1);
+	}
+	rewind(binaryFile);
+
+	printf( "---------------------------------------------------------------------\n" );
+	printf( "[STEP 1] Loading RV32I bare-metal binary started.\n" );
+	printf( "---------------------------------------------------------------------\n" );
+	fflush( stdout );
+
+	for ( int byteIdx = 0; byteIdx < BINARY_SIZE; byteIdx ++ ) {
+		uint8_t data = 0;
+		if ( fread(&data, 1, 1, binaryFile) != 1 ) {
+			printf( "Failed to read byte %d from %s\n", byteIdx, binaryPath );
+			fflush( stdout );
+			exit(1);
+		}
+
+		if ( byteIdx < INSTRUCTION_MEMORY_SIZE ) {
 			uartSend(0);
 		} else {
 			uartSend(2);
 		}
 		uartSend(data);
-		byteOffset ++;
 	}
-	fclose(binFile);
+	fclose(binaryFile);
 
-	printf( "Loaded binary: %s\n", binPath );
-	printf( "Loaded bytes : %u\n", byteOffset );
+	printf( "[STEP 1] Loading RV32I bare-metal binary finished.\n" );
+	printf( "---------------------------------------------------------------------\n" );
+	printf( "[STEP 2] Starting the processor.\n" );
+	printf( "---------------------------------------------------------------------\n" );
 	fflush( stdout );
 
 	uartSend(1);
 	uartSend(1);
 
 	while ( true ) {
-		uint32_t output = uartRecv();
-		if ( output > 0xff ) continue;
-		fprintf(stderr, "%c", (uint8_t)output);
-		fflush(stderr);
+		uint32_t data = uartReceive();
+		if ( data <= 0xff ) {
+			fprintf(stderr, "%c", static_cast<uint8_t>(data));
+			fflush(stderr);
+		}
 	}
 
-	return NULL;
+	return 0;
 }

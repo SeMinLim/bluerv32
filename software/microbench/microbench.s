@@ -1,102 +1,49 @@
-.text
+.section .text.start
+.globl _start
 
-# mult safe
-addi t0, zero, 2
-addi t1, zero, 3
-addi t2, zero, 7
-nop
-nop
-nop
-nop
-nop
-mul t0, t0, t1
-nop
-nop
-nop
-nop
-nop
-add t1, t2, t1
-nop
-nop
-nop
-nop
-nop
-mul t0, t0, t1
-nop
-nop
-nop
-nop
-nop
-addi t3, zero, 1024
-nop
-nop
-nop
-nop
-nop
-sw t0, 0(t3)
+_start:
+	li t6, 0x10000000
 
-# branch pipe safe
-branch:
+	addi t0, zero, 7
+	addi t1, zero, 5
+	add t2, t0, t1
+	addi t3, zero, 12
+	bne t2, t3, fail
 
-addi t0, zero, 1025
-addi t1, zero, 3
-addi t2, zero, 3
-addi t3, zero, 0
-nop
-nop
-nop
-nop
-nop
-nop
+	sub t2, t0, t1
+	addi t3, zero, 2
+	bne t2, t3, fail
 
-beq t1, t2, skip
+	xori t2, t0, 3
+	addi t3, zero, 4
+	bne t2, t3, fail
 
-sw t3, 0(t0)
-j multunsafe
+	ori t2, zero, 0x55
+	andi t2, t2, 0x0f
+	addi t3, zero, 5
+	bne t2, t3, fail
 
-skip:
-sw t2, 0(t0)
-#unimp
+	slli t2, t1, 3
+	srli t2, t2, 2
+	addi t3, zero, 10
+	bne t2, t3, fail
 
-multunsafe:
+	la t0, testData
+	lw t1, 0(t0)
+	lw t2, 4(t0)
+	add t3, t1, t2
+	addi t4, zero, 3
+	bne t3, t4, fail
 
-# mult pipe unsafe
-li t0, 2
-li t1, 7
-li t2, 17
-li t3, 5
-addi t2, t2, -4
-mul t2, t1, t2 # 7*13=91
-add t0, t3, t0 # 2+5=7
-sub t0, t2, t0 # 91-7 = 84
-addi t3, zero, 1026
-sw t0, 0(t3)
+	li t0, 'P'
+	sb t0, 0(t6)
+	ebreak
 
+fail:
+	li t0, 'F'
+	sb t0, 0(t6)
+	ebreak
 
-# pip3 unsafe 2
-addi t1, zero, 1027
-la t0, testdata
-lw s1, 0(t0)
-lw s2, 4(t0)
-add s3, s1, s2
-sw s3, 0(t1)
-
-
-
-
-
-
-unimp
-
-
-.data
-testdata:
-.word 1, 2, 3
-
-
-
-#branch1.s
-#mult.s
-#pipesafe.s
-#pipeunsafe1.s
-#pipeunsafe2.s
+.section .data
+testData:
+	.word 1, 2, 3

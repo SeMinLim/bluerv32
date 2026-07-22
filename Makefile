@@ -1,13 +1,14 @@
 ROOTDIR := $(abspath .)
 APP ?= minisudoku
 BOARD ?= ulx3s
+BIN ?=
 
 BSC ?= bsc
 YOSYS ?= yosys
 NEXTPNR ?= nextpnr-ecp5
 ECPPACK ?= ecppack
 PROGRAMMER ?= ujprog
-PYTHON ?= python3
+BSC_DEFINES ?=
 
 BUILD_DIR := $(ROOTDIR)/build/hardware
 BSIM_DIR := $(ROOTDIR)/build/sim
@@ -55,7 +56,8 @@ BSCFLAGS_BSIM := \
 	-l pthread
 
 .PHONY: all help software list-software check-bsc check-fpga-tools \
-	verilog netlist pnr bitstream synth bsim runsim program clean
+	verilog netlist pnr bitstream synth bsim runsim runsim-bin program \
+	lint test test-directed test-random test-differential test-arch clean
 
 all: bsim
 
@@ -65,7 +67,11 @@ help:
 		'make runsim APP=minisudoku' \
 		'make synth BOARD=ulx3s' \
 		'make program BOARD=ulx3s' \
-		'make list-software'
+		'make test-directed' \
+		'make test-random' \
+		'make test-differential' \
+		'make test-arch' \
+		'make lint'
 
 software:
 	+$(MAKE) -C software ROOTDIR=$(ROOTDIR) APP=$(APP)
@@ -90,7 +96,7 @@ check-fpga-tools:
 verilog: check-bsc
 	rm -rf $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)
-	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_SYNTH) -remove-dollar \
+	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_SYNTH) $(BSC_DEFINES) -remove-dollar \
 		-p +:$(BSV_PATH) -verilog -u -g $(TOP_MODULE) $(TOP_SOURCE)
 	cp $(CONSTRAINTS) $(BUILD_DIR)/
 	@for file in $(BSC_RTL_FILES); do \
@@ -124,23 +130,45 @@ synth: bitstream
 	@printf 'Bitstream:      %s\nYosys report:   %s\nnextpnr report: %s\n' \
 		'$(BITSTREAM)' '$(YOSYS_REPORT)' '$(NEXTPNR_REPORT)'
 
-bsim: software check-bsc
+bsim: check-bsc
 	rm -rf $(BSIM_DIR)
 	mkdir -p $(BSIM_DIR)
-	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_BSIM) \
+	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_BSIM) $(BSC_DEFINES) \
 		-p +:$(BSV_PATH) -sim -u -g $(BSIM_TOP_MODULE) $(TOP_SOURCE)
-	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_BSIM) \
+	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_BSIM) $(BSC_DEFINES) \
 		-sim -e $(BSIM_TOP_MODULE) -o $(BSIM_DIR)/bsim \
 		$(BSIM_DIR)/*.ba $(ROOTDIR)/cpp/main.cpp
 
-runsim: bsim
+runsim: software bsim
 	cd $(ROOTDIR) && BLUERV32_BIN=$(SOFTWARE_BIN) $(BSIM_DIR)/bsim \
 		2> $(ROOTDIR)/build/software/$(APP)/output.log \
 		| tee $(ROOTDIR)/build/software/$(APP)/system.log
 
+runsim-bin: bsim
+	@test -n "$(BIN)" || { echo 'Set BIN=/path/to/program.bin' >&2; exit 2; }
+	@test -f "$(BIN)" || { echo "Binary not found: $(BIN)" >&2; exit 2; }
+	cd $(ROOTDIR) && BLUERV32_BIN=$(abspath $(BIN)) $(BSIM_DIR)/bsim
+
 program: bitstream
 	@command -v $(PROGRAMMER) >/dev/null || { echo 'programmer not found: $(PROGRAMMER)' >&2; exit 127; }
 	$(PROGRAMMER) $(BITSTREAM)
+
+lint:
+	bash $(ROOTDIR)/tests/lint.sh
+
+test: test-directed test-random
+
+test-directed:
+	+$(MAKE) -C tests directed
+
+test-random:
+	+$(MAKE) -C tests random
+
+test-differential:
+	+$(MAKE) -C tests differential
+
+test-arch:
+	+$(MAKE) -C tests arch-test
 
 clean:
 	rm -rf $(ROOTDIR)/build

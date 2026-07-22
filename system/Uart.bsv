@@ -45,24 +45,20 @@ module mkUart_bsim(UartUserIfc);
 		return outQ.first;
 	endmethod
 endmodule
-	//Reg#(Bit#(16)) clkdiv <- mkReg(5000); // 48,000,000 / 9600
-
 
 /*******
-	Parameters: 
+	Parameters:
 		clkdiv_ = clock hz / baud. e.g. 48MHz -> 48,000,000 / 9600 = 5000
 
-		Terminal: 
+	Terminal:
 		8 bits, no parity, 1 stop bit, no flow control
 *******/
-
 
 module mkUart#(Integer clkdiv_) (UartIfc);
 
 	FIFO#(Bit#(8)) outQ <- mkFIFO;
 	FIFO#(Bit#(8)) inQ <- mkFIFO;
 	Bit#(16) clkdiv = fromInteger(clkdiv_);
-	//Reg#(Bit#(16)) clkdiv <- mkReg(5000); // 48,000,000 / 9600
 	Reg#(Bit#(16)) clkcnt <- mkReg(0);
 
 	Reg#(Bit#(1)) txdr <- mkReg(1);
@@ -110,16 +106,10 @@ module mkUart#(Integer clkdiv_) (UartIfc);
 		end
 	endrule
 
-
-
-
-
 	Reg#(Bit#(4)) rxin <- mkReg(4'b1111);
 	interface UartUserIfc user;
-		method Action send(Bit#(8) word);// if ( curoutoff == 0 );
+		method Action send(Bit#(8) word);
 			inQ.enq(word);
-			//curoutd <= {2'b11,word,1'b0};
-			//curoutoff <= 11;
 		endmethod
 		method ActionValue#(Bit#(8)) get;
 			outQ.deq;

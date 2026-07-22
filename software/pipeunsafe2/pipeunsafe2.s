@@ -1,13 +1,16 @@
-.text
-addi t1, zero, 1024
-la t0, testdata
-lw s1, 0(t0)
-lw s2, 4(t0)
-add s3, s1, s2
-sw s3, 0(t1)
-unimp
+.section .text.start
+.globl _start
 
+_start:
+	li t6, 0x10000000
+	la t0, testData
+	lw s1, 0(t0)
+	lw s2, 4(t0)
+	add s3, s1, s2
+	li t1, 'P'
+	sb t1, 0(t6)
+	ebreak
 
-.data
-testdata:
-.word 1, 2, 3
+.section .data
+testData:
+	.word 1, 2, 3

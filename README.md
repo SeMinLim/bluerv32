@@ -59,6 +59,27 @@ loaded into instruction BRAM and the second 4 KiB into data BRAM.
 - Spike for differential testing
 - RISCOF and the official RISC-V architectural-test suite for certification tests
 
+## Install the RISC-V GNU toolchain
+
+On Ubuntu or Debian, install the bare-metal compiler and binary utilities with:
+
+```bash
+sudo apt update
+sudo apt install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+```
+
+Verify that the tools used by blueRV32 are available:
+
+```bash
+riscv64-unknown-elf-gcc --version
+riscv64-unknown-elf-objcopy --version
+riscv64-unknown-elf-objdump --version
+```
+
+The `riscv64-unknown-elf-` toolchain prefix can generate RV32I software because
+blueRV32 supplies `-march=rv32i -mabi=ilp32`. For other platforms or a source
+build, follow the official [RISC-V GNU Compiler Toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain) instructions.
+
 ## Build and simulate
 
 ```bash

@@ -111,10 +111,11 @@ module mkHwMain(HwMainIfc);
 				request.size, request.write);
 		end else if ( request.write && request.size == ByteAccess &&
 				request.addr == uartTxAddr ) begin
-			serialTxQ.enq(truncate(request.data));
+			Bit#(8) uartData = truncate(request.data);
+			serialTxQ.enq(uartData);
 			processor.dMemResp(MemResp {data: 0, fault: False});
 `ifdef BSIM
-			$display("RV32_UART data=%02x", truncate(request.data));
+			$display("RV32_UART data=%02x", uartData);
 `endif
 		end else begin
 			processor.dMemResp(MemResp {data: 0, fault: True});

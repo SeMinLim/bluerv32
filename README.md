@@ -42,13 +42,13 @@ build/hardware/            Generated Verilog, reports, and bitstream
 ## Memory map
 
 ```text
-0x0000_0000 - 0x0000_0fff   4 KiB instruction BRAM
-0x0000_1000 - 0x0000_1fff   4 KiB data BRAM
+0x0000_0000 - 0x0000_7fff   32 KiB instruction BRAM
+0x0000_8000 - 0x0000_ffff   32 KiB data BRAM
 0x1000_0000                  Byte-wide UART transmit register
 ```
 
-The RISC-V GNU toolchain generates one exactly 8 KiB binary. The first 4 KiB is
-loaded into instruction BRAM and the second 4 KiB into data BRAM.
+The RISC-V GNU toolchain generates one exactly 64 KiB binary. The first 32 KiB
+is loaded into instruction BRAM and the second 32 KiB into data BRAM.
 
 ## Requirements
 

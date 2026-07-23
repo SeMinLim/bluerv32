@@ -1,6 +1,8 @@
 ROOTDIR := $(abspath ..)
 TEST ?= rv32i_basic
 RISCV_PREFIX ?= riscv64-unknown-elf-
+BINARY_SIZE := 65536
+BINARY_LIMIT := 0x10000
 
 CC := $(RISCV_PREFIX)gcc
 OBJCOPY := $(RISCV_PREFIX)objcopy
@@ -57,8 +59,8 @@ $(ELF): $(SOURCE) $(LINKER)
 	$(CC) $(FLAGS) $< -o $@
 
 $(BIN): $(ELF)
-	$(OBJCOPY) -O binary --gap-fill 0 --pad-to 0x2000 $< $@
-	@test "$$(wc -c < $@)" -eq 8192
+	$(OBJCOPY) -O binary --gap-fill 0 --pad-to $(BINARY_LIMIT) $< $@
+	@test "$$(wc -c < $@)" -eq $(BINARY_SIZE)
 
 $(DUMP): $(ELF)
 	$(OBJDUMP) -d -Mno-aliases $< > $@

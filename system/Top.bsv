@@ -7,10 +7,13 @@ import Processor::*;
 import BRAMSubWord::*;
 import Uart::*;
 
+typedef 15 MemoryAddrSize;
+
+Bit#(16) memorySizeBytes = 16'h8000;
 Word instructionBase = 32'h00000000;
-Word instructionLimit = 32'h00001000;
-Word dataBase = 32'h00001000;
-Word dataLimit = 32'h00002000;
+Word instructionLimit = 32'h00008000;
+Word dataBase = 32'h00008000;
+Word dataLimit = 32'h00010000;
 Word uartTxAddr = 32'h10000000;
 
 function Bit#(8) nextMemoryLfsr(Bit#(8) value);
@@ -47,12 +50,12 @@ endinterface
 
 module mkHwMain(HwMainIfc);
 	ProcessorIfc processor <- mkProcessor;
-	BRAMSubWordIfc#(12) instructionMemory <- mkBRAMSubWord;
-	BRAMSubWordIfc#(12) dataMemory <- mkBRAMSubWord;
+	BRAMSubWordIfc#(MemoryAddrSize) instructionMemory <- mkBRAMSubWord;
+	BRAMSubWordIfc#(MemoryAddrSize) dataMemory <- mkBRAMSubWord;
 
 	Reg#(Bool) processorOn <- mkReg(False);
-	Reg#(Bit#(13)) instructionLoadCnt <- mkReg(0);
-	Reg#(Bit#(13)) dataLoadCnt <- mkReg(0);
+	Reg#(Bit#(16)) instructionLoadCnt <- mkReg(0);
+	Reg#(Bit#(16)) dataLoadCnt <- mkReg(0);
 	Reg#(Maybe#(Bit#(8))) serialCommand <- mkReg(tagged Invalid);
 	Reg#(Maybe#(TrapInfo)) trapR <- mkReg(tagged Invalid);
 	Reg#(Bit#(8)) memoryLfsr <- mkReg(8'h1);
@@ -154,13 +157,13 @@ module mkHwMain(HwMainIfc);
 
 			case ( command )
 				0: begin
-					if ( instructionLoadCnt < fromInteger(4096) ) begin
+					if ( instructionLoadCnt < memorySizeBytes ) begin
 						instructionMemory.loadByte(truncate(instructionLoadCnt), data);
 						instructionLoadCnt <= instructionLoadCnt + 1;
 					end
 				end
 				2: begin
-					if ( dataLoadCnt < fromInteger(4096) ) begin
+					if ( dataLoadCnt < memorySizeBytes ) begin
 						dataMemory.loadByte(truncate(dataLoadCnt), data);
 						dataLoadCnt <= dataLoadCnt + 1;
 					end

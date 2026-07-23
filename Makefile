@@ -13,6 +13,8 @@ BSC_DEFINES ?=
 BUILD_DIR := $(ROOTDIR)/build/hardware
 BSIM_DIR := $(ROOTDIR)/build/sim
 SOFTWARE_BIN := $(ROOTDIR)/build/software/$(APP)/$(APP).bin
+SOFTWARE_OUTPUT := $(ROOTDIR)/build/software/$(APP)/output.log
+SOFTWARE_SYSTEM_LOG := $(ROOTDIR)/build/software/$(APP)/system.log
 TOP_SOURCE := $(ROOTDIR)/system/Top.bsv
 TOP_MODULE := mkTop
 BSIM_TOP_MODULE := mkTop_bsim
@@ -140,9 +142,16 @@ bsim: check-bsc
 		$(BSIM_DIR)/*.ba $(ROOTDIR)/cpp/main.cpp
 
 runsim: software bsim
-	cd $(ROOTDIR) && BLUERV32_BIN=$(SOFTWARE_BIN) $(BSIM_DIR)/bsim \
-		2> $(ROOTDIR)/build/software/$(APP)/output.log \
-		| tee $(ROOTDIR)/build/software/$(APP)/system.log
+	@bash -o pipefail -c 'cd "$(ROOTDIR)" && \
+		BLUERV32_BIN="$(SOFTWARE_BIN)" "$(BSIM_DIR)/bsim" \
+		2> >(tee "$(SOFTWARE_OUTPUT)" >&2) \
+		| tee "$(SOFTWARE_SYSTEM_LOG)"'
+	@printf '%s\n' \
+		'---------------------------------------------------------------------' \
+		'[RESULT] RV32I simulation completed successfully.' \
+		'Program output: $(SOFTWARE_OUTPUT)' \
+		'Simulation log: $(SOFTWARE_SYSTEM_LOG)' \
+		'---------------------------------------------------------------------'
 
 runsim-bin: bsim
 	@test -n "$(BIN)" || { echo 'Set BIN=/path/to/program.bin' >&2; exit 2; }

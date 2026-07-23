@@ -15,7 +15,7 @@ core_log="${root_dir}/build/tests/rv32i_diff/core.log"
 spike_log="${root_dir}/build/tests/rv32i_diff/spike.log"
 
 BLUERV32_BIN="${binary}" "${root_dir}/build/sim/bsim" >"${core_log}" 2>&1
-spike --isa=RV32I --pc=0 -m0x0:0x2000 -l "${elf}" \
+spike --isa=RV32I --pc=0 -m0x0:0x10000 -l "${elf}" \
 	>/dev/null 2>"${spike_log}" || true
 
 python3 "${test_dir}/differential/compare_spike.py" \

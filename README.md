@@ -34,7 +34,10 @@ software/
 └── minisudoku/            RV32I bare-metal C benchmark
 cpp/                       Bluesim binary loader and UART bridge
 ulx3s/                     ULX3S-85F constraints
-tests/                     Directed, random-latency, differential, and arch tests
+tests/
+├── directed/              Directed RV32I and fault tests
+├── differential/          Optional Spike trace comparison
+└── act4/                  ACT4 DUT configuration and complete runner
 build/software/<app>/      Generated ELF, BIN, dump, and simulation logs
 build/hardware/            Generated Verilog, reports, and bitstream
 ```
@@ -56,8 +59,8 @@ is loaded into instruction BRAM and the second 32 KiB into data BRAM.
 - RISC-V GNU toolchain, default prefix `riscv64-unknown-elf-`
 - Yosys, `nextpnr-ecp5`, and `ecppack` for ULX3S synthesis
 - `ujprog` for ULX3S programming
-- Spike for differential testing
-- RISCOF and the official RISC-V architectural-test suite for certification tests
+- Spike for optional differential testing
+- ACT4, Sail RISC-V 0.13, and RISC-V GCC 15/Binutils 2.44 or later for certification testing
 
 ## Install the RISC-V GNU toolchain
 
@@ -79,6 +82,10 @@ riscv64-unknown-elf-objdump --version
 The `riscv64-unknown-elf-` toolchain prefix can generate RV32I software because
 blueRV32 supplies `-march=rv32i -mabi=ilp32`. For other platforms or a source
 build, follow the official [RISC-V GNU Compiler Toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain) instructions.
+
+The distribution package is sufficient for the normal blueRV32 software flow,
+but ACT4 currently requires RISC-V GCC 15 and Binutils 2.44 or later. Build a
+current multilib toolchain when the packaged version is older.
 
 ## Build and simulate
 
@@ -110,10 +117,36 @@ make lint
 make test-directed
 make test-random
 make test-differential
-make test-arch
 ```
 
 `test-random` applies pseudo-random request backpressure and response latency.
-`test-differential` compares retired PC/instruction traces with Spike. The
-architectural-test target requires an external blueRV32-compatible RISCOF
-configuration and official RV32I suite.
+`test-differential` compares retired PC/instruction traces with Spike and is
+optional rather than a certification prerequisite.
+
+### ACT4 RV32I certification tests
+
+Install the current ACT4 dependencies described by the official
+[`riscv-arch-test`](https://github.com/riscv/riscv-arch-test) project, clone the
+repository, and trust its `mise` configuration when using `mise`:
+
+```bash
+git clone https://github.com/riscv/riscv-arch-test.git
+cd riscv-arch-test
+mise trust .mise.toml
+cd /path/to/bluerv32
+```
+
+Generate and run every applicable RV32I self-checking ELF on blueRV32 Bluesim:
+
+```bash
+make test-act4 ACT4_DIR=/path/to/riscv-arch-test
+```
+
+`make test-arch` is retained as an alias. Results are stored under
+`build/act4/work/bluerv32-rv32i/`, and the exact blueRV32, ACT4, compiler, and
+Sail versions are recorded in `build/act4/versions.txt`.
+
+The ACT4 UDB file uses a machine-mode-oriented compilation envelope because the
+current framework requires it. Privileged tests are disabled, boot and
+CSR-dependent paths are bypassed, and `fence.i` is replaced with `nop`; the
+instruction stream executed by blueRV32 remains RV32I.

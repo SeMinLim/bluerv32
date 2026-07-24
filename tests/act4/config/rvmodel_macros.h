@@ -3,6 +3,7 @@
 
 #define RVMODEL_BOOT
 #define RVMODEL_BOOT_TO_MMODE
+#define RVMODEL_FENCEI nop
 #define RVMODEL_IO_INIT(_R1, _R2, _R3)
 
 #ifdef SIGNATURE

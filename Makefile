@@ -59,7 +59,8 @@ BSCFLAGS_BSIM := \
 
 .PHONY: all help software list-software check-bsc check-fpga-tools \
 	verilog netlist pnr bitstream synth bsim runsim runsim-bin program \
-	lint test test-directed test-random test-differential test-arch clean
+	lint test test-directed test-random test-differential test-act4 \
+	test-arch clean
 
 all: bsim
 
@@ -72,7 +73,7 @@ help:
 		'make test-directed' \
 		'make test-random' \
 		'make test-differential' \
-		'make test-arch' \
+		'make test-act4 ACT4_DIR=/path/to/riscv-arch-test' \
 		'make lint'
 
 software:
@@ -176,8 +177,10 @@ test-random:
 test-differential:
 	+$(MAKE) -C tests differential
 
-test-arch:
-	+$(MAKE) -C tests arch-test
+test-act4:
+	+$(MAKE) -C tests act4
+
+test-arch: test-act4
 
 clean:
 	rm -rf $(ROOTDIR)/build

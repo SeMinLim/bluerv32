@@ -80,6 +80,20 @@ if [[ ! -d "${elf_dir}" ]]; then
 	exit 2
 fi
 
+mapfile -d '' act4_elfs < <(find "${elf_dir}" -type f -name '*.elf' -print0)
+if [[ "${#act4_elfs[@]}" -eq 0 ]]; then
+	echo "ACT4 generated no RV32I ELF files." >&2
+	exit 2
+fi
+
+for elf in "${act4_elfs[@]}"; do
+	relative_elf="${elf#${elf_dir}/}"
+	if [[ "/${relative_elf}/" != *'/I/'* ]]; then
+		echo "ACT4 generated a non-I test despite EXTENSIONS=I: ${relative_elf}" >&2
+		exit 2
+	fi
+done
+
 export BLUERV32_BSIM="${root_dir}/build/sim/bsim"
 export BLUERV32_ACT4_IMAGE_DIR="${build_dir}/images"
 export ACT4_OBJCOPY="${act4_objcopy}"
@@ -93,6 +107,7 @@ python3 "${act4_dir}/run_tests.py" \
 printf '%s\n' \
 	'---------------------------------------------------------------------' \
 	'[RESULT] ACT4 RV32I certification tests completed successfully.' \
+	"Tests: ${#act4_elfs[@]}" \
 	"Results: ${summary_dir}" \
 	"Versions: ${build_dir}/versions.txt" \
 	'---------------------------------------------------------------------'

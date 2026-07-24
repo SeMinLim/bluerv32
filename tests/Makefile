@@ -44,7 +44,7 @@ FLAGS := \
 	-Wl,-T,$(LINKER) \
 	-Wl,--build-id=none
 
-.PHONY: build check directed random differential arch-test clean
+.PHONY: build check directed random differential act4 arch-test clean
 
 build: check $(BIN) $(DUMP)
 
@@ -74,8 +74,10 @@ random:
 differential:
 	bash $(CURDIR)/differential/run.sh
 
-arch-test:
-	bash $(CURDIR)/arch-test/run.sh
+act4:
+	bash $(CURDIR)/act4/run.sh
+
+arch-test: act4
 
 clean:
 	rm -rf $(ROOTDIR)/build/tests

@@ -85,7 +85,7 @@ export BLUERV32_ACT4_IMAGE_DIR="${build_dir}/images"
 export ACT4_OBJCOPY="${act4_objcopy}"
 
 python3 "${act4_dir}/run_tests.py" \
-	"${root_dir}/tests/act4/run_elf.sh" \
+	"bash ${root_dir}/tests/act4/run_elf.sh" \
 	"${elf_dir}" \
 	--jobs "${act4_jobs}" \
 	--timeout "${act4_timeout}"

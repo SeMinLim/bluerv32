@@ -14,7 +14,8 @@ image_dir="${BLUERV32_ACT4_IMAGE_DIR:-$(dirname "${elf}")/images}"
 mkdir -p "${image_dir}"
 
 elf_name="$(basename "${elf}")"
-binary="${image_dir}/${elf_name%.elf}.bin"
+elf_hash="$(printf '%s' "${elf}" | sha256sum | cut -c1-16)"
+binary="${image_dir}/${elf_name%.elf}-${elf_hash}.bin"
 
 "${ACT4_OBJCOPY}" -O binary --gap-fill 0 --pad-to 0x10000 "${elf}" "${binary}"
 

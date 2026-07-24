@@ -63,6 +63,9 @@ module mkHwMain(HwMainIfc);
 	Reg#(Bit#(3)) instructionDelayCnt <- mkReg(0);
 	Reg#(Maybe#(Word)) dataResponseR <- mkReg(tagged Invalid);
 	Reg#(Bit#(3)) dataDelayCnt <- mkReg(0);
+`ifdef RV32_ACT4
+	Reg#(Bool) instructionFromDataOn <- mkReg(False);
+`endif
 
 	FIFO#(Bit#(8)) serialRxQ <- mkFIFO;
 	FIFOF#(Bit#(8)) serialTxQ <- mkFIFOF;
@@ -77,22 +80,50 @@ module mkHwMain(HwMainIfc);
 	//------------------------------------------------------------------------------------
 	rule relayInstructionRequest ( processorOn && memoryRequestReady(memoryLfsr) );
 		let request <- processor.iMemReq;
-		Bool valid = !request.write && request.size == WordAccess &&
+		Bool inInstructionMemory = !request.write && request.size == WordAccess &&
 			accessInRange(request.addr, instructionBase, instructionLimit, WordAccess);
+`ifdef RV32_ACT4
+		Bool inDataMemory = !request.write && request.size == WordAccess &&
+			accessInRange(request.addr, dataBase, dataLimit, WordAccess);
+`endif
 
-		if ( valid ) begin
+		if ( inInstructionMemory ) begin
 			instructionMemory.req(truncate(request.addr - instructionBase),
 				0, WordAccess, False);
+`ifdef RV32_ACT4
+			instructionFromDataOn <= False;
+		end else if ( inDataMemory ) begin
+			dataMemory.req(truncate(request.addr - dataBase),
+				0, WordAccess, False);
+			instructionFromDataOn <= True;
+`endif
 		end else begin
 			processor.iMemResp(MemResp {data: 0, fault: True});
 		end
 	endrule
 
+`ifdef RV32_ACT4
+	rule captureInstructionResponseInstructionMemory (
+			processorOn && !isValid(instructionResponseR) && !instructionFromDataOn );
+		let data <- instructionMemory.resp;
+		instructionResponseR <= tagged Valid data;
+		instructionDelayCnt <= memoryResponseDelay(memoryLfsr);
+	endrule
+
+	rule captureInstructionResponseDataMemory (
+			processorOn && !isValid(instructionResponseR) && instructionFromDataOn );
+		let data <- dataMemory.resp;
+		instructionResponseR <= tagged Valid data;
+		instructionDelayCnt <= memoryResponseDelay(memoryLfsr);
+		instructionFromDataOn <= False;
+	endrule
+`else
 	rule captureInstructionResponse ( processorOn && !isValid(instructionResponseR) );
 		let data <- instructionMemory.resp;
 		instructionResponseR <= tagged Valid data;
 		instructionDelayCnt <= memoryResponseDelay(memoryLfsr);
 	endrule
+`endif
 
 	rule relayInstructionResponse ( processorOn && isValid(instructionResponseR) );
 		if ( instructionDelayCnt == 0 ) begin
@@ -118,14 +149,21 @@ module mkHwMain(HwMainIfc);
 			serialTxQ.enq(uartData);
 			processor.dMemResp(MemResp {data: 0, fault: False});
 `ifdef BSIM
+`ifndef RV32_ACT4
 			$display("RV32_UART data=%02x", uartData);
+`endif
 `endif
 		end else begin
 			processor.dMemResp(MemResp {data: 0, fault: True});
 		end
 	endrule
 
+`ifdef RV32_ACT4
+	rule captureDataResponse (
+			processorOn && !isValid(dataResponseR) && !instructionFromDataOn );
+`else
 	rule captureDataResponse ( processorOn && !isValid(dataResponseR) );
+`endif
 		let data <- dataMemory.resp;
 		dataResponseR <= tagged Valid data;
 		dataDelayCnt <= memoryResponseDelay({memoryLfsr[4:0], memoryLfsr[7:5]});

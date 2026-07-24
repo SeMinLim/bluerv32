@@ -22,15 +22,17 @@
 #define RVMODEL_HALT_PASS \
 	li t0, 1; \
 	la t1, tohost; \
-	sw t0, 0(t1); \
 1: \
+	sw t0, 0(t1); \
+	sw zero, 4(t1); \
 	j 1b;
 
 #define RVMODEL_HALT_FAIL \
 	li t0, 3; \
 	la t1, tohost; \
-	sw t0, 0(t1); \
 1: \
+	sw t0, 0(t1); \
+	sw zero, 4(t1); \
 	j 1b;
 
 #else

@@ -29,7 +29,7 @@ for file in "${act4_dir}/Makefile" "${act4_dir}/run_tests.py"; do
 	fi
 done
 
-for command in bsc make python3 "${act4_cc}" "${act4_objcopy}" \
+for command in bsc make python3 sha256sum "${act4_cc}" "${act4_objcopy}" \
 		"${act4_objdump}" "${act4_sail}"; do
 	command -v "${command}" >/dev/null || {
 		echo "Required ACT4 command not found: ${command}" >&2

@@ -61,21 +61,21 @@ def patchSailConfig(sourcePath: Path, outputPath: Path) -> None:
 	regions = memory["regions"]
 	mainRegions = [
 		region for region in regions
-		if region["attrs"]["mem_type"] == "MainMemory"
+		if region["attributes"]["mem_type"] == "MainMemory"
 	]
 
 	if len(mainRegions) != 1:
 		raise RuntimeError("Expected exactly one MainMemory region in the ACT4 Sail config.")
 
 	mainRegion = mainRegions[0]
+	attributes = mainRegion["attributes"]
 	mainRegion["base"]["value"] = "0x00000000"
 	mainRegion["size"]["value"] = "0x00010000"
-	mainRegion["attrs"]["executable"] = True
-	mainRegion["attrs"]["readable"] = True
-	mainRegion["attrs"]["writable"] = True
-	mainRegion["attrs"]["misaligned_exceptions"] = {
-		"load_store": {"Some": "AlignmentException"},
-		"fetch": {"Some": "AlignmentException"},
+	attributes["executable"] = True
+	attributes["readable"] = True
+	attributes["writable"] = True
+	attributes["misaligned_exceptions"]["load_store"] = {
+		"Some": "AlignmentException"
 	}
 	memory["regions"] = [mainRegion]
 	memory["dtb_address"]["value"] = "0x00000000"

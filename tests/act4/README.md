@@ -1,6 +1,6 @@
 # ACT4 RV32I Certification Tests
 
-This directory integrates the official ACT4 framework with the blueRV32 Bluesim target. It replaces the former RISCOF launch point.
+This directory integrates the official ACT4 framework with the blueRV32 Bluesim target.
 
 The integration:
 

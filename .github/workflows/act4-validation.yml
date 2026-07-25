@@ -69,7 +69,15 @@ jobs:
           ghc: 9.6.7
           cabal: recommended
 
+      - name: Restore Bluespec Compiler
+        id: cache-bsc
+        uses: actions/cache@v4
+        with:
+          path: /tmp/bsc/inst
+          key: bsc-ubuntu-24.04-x86_64-ghc-9.6.7-20260725
+
       - name: Build Bluespec Compiler
+        if: steps.cache-bsc.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 --recurse-submodules --shallow-submodules \
             https://github.com/B-Lang-org/bsc.git /tmp/bsc
@@ -77,6 +85,10 @@ jobs:
           cabal v1-install old-time regex-compat split strict-concurrency syb
           make -C /tmp/bsc -j "$(nproc)" GHCJOBS=2 \
             GHCRTSFLAGS='+RTS -M5G -A128m -RTS' install-src
+
+      - name: Enable Bluespec Compiler
+        run: |
+          test -x /tmp/bsc/inst/bin/bsc
           echo '/tmp/bsc/inst/bin' >> "$GITHUB_PATH"
 
       - name: Install ACT4 framework
@@ -103,7 +115,9 @@ jobs:
           ACT4_SAIL: /home/runner/riscv/bin/sail_riscv_sim
           ACT4_JOBS: 2
           ACT4_TIMEOUT: 300
-        run: make test-act4
+        run: |
+          set -o pipefail
+          make test-act4 2>&1 | tee build/act4-run.log
 
       - name: Upload ACT4 diagnostics
         if: always()
@@ -112,6 +126,7 @@ jobs:
           name: bluerv32-act4-diagnostics
           path: |
             build/lint.log
+            build/act4-run.log
             build/act4
           if-no-files-found: warn
           retention-days: 1

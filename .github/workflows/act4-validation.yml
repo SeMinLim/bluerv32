@@ -1,0 +1,108 @@
+name: ACT4 RV32I Validation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/act4-validation.yml
+      - Makefile
+      - cpp/**
+      - processor/**
+      - system/**
+      - tests/act4/**
+      - tests/lint.sh
+
+permissions:
+  contents: read
+
+jobs:
+  act4-rv32i:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out blueRV32
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            bison \
+            build-essential \
+            curl \
+            flex \
+            gperf \
+            iverilog \
+            libgmp-dev \
+            pkg-config \
+            ruby-bundler \
+            ruby-full \
+            tcl-dev \
+            xz-utils
+          bundle config set --global path "$HOME/.bundle"
+
+      - name: Install LLVM 20
+        run: |
+          curl -fsSL https://apt.llvm.org/llvm.sh -o /tmp/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh 20 all
+          clang-20 --version
+          llvm-objcopy-20 --version
+          llvm-objdump-20 --version
+
+      - name: Install GHC
+        uses: haskell/ghcup-setup@v1
+        with:
+          ghc: 9.6.7
+          cabal: recommended
+
+      - name: Build Bluespec Compiler
+        run: |
+          git clone --depth 1 --recurse-submodules --shallow-submodules \
+            https://github.com/B-Lang-org/bsc.git /tmp/bsc
+          cabal update
+          cabal v1-install old-time regex-compat split strict-concurrency syb
+          make -C /tmp/bsc -j "$(nproc)" GHCJOBS=2 \
+            GHCRTSFLAGS='+RTS -M5G -A128m -RTS' install-src
+          echo '/tmp/bsc/inst/bin' >> "$GITHUB_PATH"
+
+      - name: Install ACT4 framework
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          git clone --depth 1 https://github.com/riscv/riscv-arch-test.git /tmp/riscv-arch-test
+
+      - name: Install Sail RISC-V 0.13
+        run: |
+          mkdir -p "$HOME/riscv"
+          curl -fsSL \
+            https://github.com/riscv/sail-riscv/releases/download/0.13/sail-riscv-Linux-x86_64.tar.gz \
+            | tar xz --directory="$HOME/riscv" --strip-components=1
+          echo "$HOME/riscv/bin" >> "$GITHUB_PATH"
+          "$HOME/riscv/bin/sail_riscv_sim" --version
+
+      - name: Run repository lint
+        run: make lint
+
+      - name: Run ACT4 RV32I certification tests
+        env:
+          ACT4_DIR: /tmp/riscv-arch-test
+          ACT4_CC: clang-20
+          ACT4_OBJCOPY: llvm-objcopy-20
+          ACT4_OBJDUMP: llvm-objdump-20
+          ACT4_SAIL: /home/runner/riscv/bin/sail_riscv_sim
+          ACT4_JOBS: 2
+          ACT4_TIMEOUT: 300
+        run: make test-act4
+
+      - name: Upload ACT4 results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bluerv32-act4-results
+          path: build/act4
+          if-no-files-found: warn
+          retention-days: 1

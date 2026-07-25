@@ -85,8 +85,9 @@ def patchSailConfig(sourcePath: Path, outputPath: Path) -> None:
 		peripheral = platform.get(peripheralName)
 		if peripheral is not None:
 			peripheral["supported"] = False
-			peripheral["base"]["value"] = "0x00000000"
-			peripheral["size"]["value"] = "0x00000000"
+			peripheral["base"] = 0
+			if "size" in peripheral:
+				peripheral["size"] = 0
 
 	outputPath.write_text(
 		json.dumps(config, indent=2, sort_keys=True) + "\n",

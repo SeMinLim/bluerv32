@@ -16,6 +16,9 @@ config_dir="${build_dir}/config"
 work_dir="${build_dir}/work"
 summary_dir="${work_dir}/bluerv32-rv32i"
 elf_dir="${summary_dir}/elfs"
+extensions_file="${summary_dir}/extensions.txt"
+rvtest_config_file="${summary_dir}/rvtest_config.h"
+audit_dir="${build_dir}/audit"
 
 if [[ -z "${act4_dir}" ]]; then
 	echo "Set ACT4_DIR to a riscv/riscv-arch-test checkout." >&2
@@ -37,9 +40,19 @@ for command in bsc make python3 sha256sum "${act4_cc}" "${act4_objcopy}" \
 	}
 done
 
+compiler_name="$(basename "${act4_cc}")"
 compiler_major="$("${act4_cc}" -dumpversion | cut -d. -f1)"
-if [[ ! "${compiler_major}" =~ ^[0-9]+$ ]] || (( compiler_major < 15 )); then
-	echo "ACT4 requires RISC-V GCC 15 or later; found: $("${act4_cc}" -dumpversion)" >&2
+if [[ "${compiler_name}" == *clang* ]]; then
+	compiler_family='Clang'
+	compiler_required=20
+else
+	compiler_family='GCC'
+	compiler_required=15
+fi
+
+if [[ ! "${compiler_major}" =~ ^[0-9]+$ ]] || \
+		(( compiler_major < compiler_required )); then
+	echo "ACT4 requires ${compiler_family} ${compiler_required} or later; found: $("${act4_cc}" -dumpversion)" >&2
 	exit 2
 fi
 
@@ -61,6 +74,8 @@ python3 "${root_dir}/tests/act4/prepare_config.py" \
 	git -C "${act4_dir}" rev-parse HEAD 2>/dev/null || printf 'unknown\n'
 	printf 'Compiler: '
 	"${act4_cc}" -dumpfullversion -dumpversion
+	printf 'Objdump: '
+	"${act4_objdump}" --version | head -n 1
 	printf 'Sail: '
 	"${act4_sail}" --version
 } > "${build_dir}/versions.txt"
@@ -75,12 +90,33 @@ make -C "${act4_dir}" elfs \
 	FAST=True \
 	JOBS="${act4_jobs}"
 
+for file in "${extensions_file}" "${rvtest_config_file}"; do
+	if [[ ! -f "${file}" ]]; then
+		echo "ACT4 did not generate the expected DUT file: ${file}" >&2
+		exit 2
+	fi
+done
+
+mapfile -t act4_extensions < <(sed '/^[[:space:]]*$/d' "${extensions_file}" | sort -u)
+if [[ "${#act4_extensions[@]}" -ne 1 || "${act4_extensions[0]}" != 'I' ]]; then
+	echo "ACT4 DUT configuration is not RV32I-only: ${act4_extensions[*]}" >&2
+	exit 2
+fi
+
+for macro in STANDARD_SM_SUPPORTED ZICSR_SUPPORTED ZIFENCEI_SUPPORTED; do
+	if grep -E -q "^#define[[:space:]]+${macro}([[:space:]]|$)" \
+			"${rvtest_config_file}"; then
+		echo "ACT4 generated a forbidden DUT macro: ${macro}" >&2
+		exit 2
+	fi
+done
+
 if [[ ! -d "${elf_dir}" ]]; then
 	echo "ACT4 did not generate the expected ELF directory: ${elf_dir}" >&2
 	exit 2
 fi
 
-mapfile -d '' act4_elfs < <(find "${elf_dir}" -type f -name '*.elf' -print0)
+mapfile -d '' act4_elfs < <(find "${elf_dir}" -type f -name '*.elf' -print0 | sort -z)
 if [[ "${#act4_elfs[@]}" -eq 0 ]]; then
 	echo "ACT4 generated no RV32I ELF files." >&2
 	exit 2
@@ -93,6 +129,9 @@ for elf in "${act4_elfs[@]}"; do
 		exit 2
 	fi
 done
+
+bash "${root_dir}/tests/act4/audit_elfs.sh" \
+	"${act4_objdump}" "${elf_dir}" "${audit_dir}"
 
 export BLUERV32_BSIM="${root_dir}/build/sim/bsim"
 export BLUERV32_ACT4_IMAGE_DIR="${build_dir}/images"
@@ -109,5 +148,6 @@ printf '%s\n' \
 	'[RESULT] ACT4 RV32I certification tests completed successfully.' \
 	"Tests: ${#act4_elfs[@]}" \
 	"Results: ${summary_dir}" \
+	"ELF audit: ${audit_dir}" \
 	"Versions: ${build_dir}/versions.txt" \
 	'---------------------------------------------------------------------'

@@ -60,7 +60,7 @@ is loaded into instruction BRAM and the second 32 KiB into data BRAM.
 - Yosys, `nextpnr-ecp5`, and `ecppack` for ULX3S synthesis
 - `ujprog` for ULX3S programming
 - Spike for optional differential testing
-- ACT4, Sail RISC-V 0.13, and RISC-V GCC 15/Binutils 2.44 or later for certification testing
+- ACT4, Sail RISC-V 0.13, and RISC-V GCC 15/Binutils 2.44 or Clang/LLVM 20 or later for certification testing
 
 ## Install the RISC-V GNU toolchain
 
@@ -84,8 +84,8 @@ blueRV32 supplies `-march=rv32i -mabi=ilp32`. For other platforms or a source
 build, follow the official [RISC-V GNU Compiler Toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain) instructions.
 
 The distribution package is sufficient for the normal blueRV32 software flow,
-but ACT4 currently requires RISC-V GCC 15 and Binutils 2.44 or later. Build a
-current multilib toolchain when the packaged version is older.
+but ACT4 currently requires RISC-V GCC 15 and Binutils 2.44 or Clang/LLVM 20 or
+later. Build or install a current toolchain when the packaged version is older.
 
 ## Build and simulate
 
@@ -143,10 +143,11 @@ make test-act4 ACT4_DIR=/path/to/riscv-arch-test
 ```
 
 `make test-arch` is retained as an alias. Results are stored under
-`build/act4/work/bluerv32-rv32i/`, and the exact blueRV32, ACT4, compiler, and
-Sail versions are recorded in `build/act4/versions.txt`.
+`build/act4/work/bluerv32-rv32i/`, ELF disassembly audits are stored under
+`build/act4/audit/`, and exact tool and source versions are recorded in
+`build/act4/versions.txt`.
 
-The ACT4 UDB file uses a machine-mode-oriented compilation envelope because the
-current framework requires it. Privileged tests are disabled, boot and
-CSR-dependent paths are bypassed, and `fence.i` is replaced with `nop`; the
-instruction stream executed by blueRV32 remains RV32I.
+The ACT4 DUT configuration declares only the `I` extension. Privileged tests are
+disabled, required interrupt-operation macros are inert stubs, and the runner
+rejects Sm, Zicsr, Zifencei, M, C, CSR, privileged, or `fence.i` content before
+executing the generated ELFs on blueRV32.

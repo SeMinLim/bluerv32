@@ -12,6 +12,10 @@ on:
       - system/**
       - tests/act4/**
       - tests/lint.sh
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read

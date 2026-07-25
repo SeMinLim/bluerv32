@@ -14,7 +14,8 @@ if grep -R -n -E '\brv32im\b|\bmul\b' \
 	exit 1
 fi
 
-if grep -R -n 'RISCOF' "${root_dir}/README.md" "${root_dir}/tests"; then
+if grep -R -n --exclude='lint.sh' 'RISCOF' \
+		"${root_dir}/README.md" "${root_dir}/tests"; then
 	echo 'Deprecated architectural-test integration must not remain in blueRV32.' >&2
 	exit 1
 fi
@@ -77,17 +78,26 @@ grep -q 'ACT4 generated no RV32I ELF files' "${root_dir}/tests/act4/run.sh"
 grep -q 'generated a non-I test' "${root_dir}/tests/act4/run.sh"
 grep -q 'audit_elfs.sh' "${root_dir}/tests/act4/run.sh"
 grep -q 'run_tests.py' "${root_dir}/tests/act4/run.sh"
+grep -q '__bss_start' "${root_dir}/tests/act4/config/link.ld"
+grep -q '__bss_end' "${root_dir}/tests/act4/config/link.ld"
+grep -q '__stack_bottom' "${root_dir}/tests/act4/config/link.ld"
+grep -q '__stack_top' "${root_dir}/tests/act4/config/link.ld"
+grep -q '\.text\.rvmodel' "${root_dir}/tests/act4/config/link.ld"
+grep -q '\.tohost' "${root_dir}/tests/act4/config/link.ld"
 
 python3 - "${root_dir}/tests/act4/config/bluerv32-rv32i.yaml" \
-		"${root_dir}/tests/act4/config/rvmodel_macros.h" <<'PY'
+		"${root_dir}/tests/act4/config/rvmodel_macros.h" \
+		"${root_dir}/tests/act4/config/link.ld" <<'PY'
 from pathlib import Path
 import re
 import sys
 
 udb_path = Path(sys.argv[1])
 macro_path = Path(sys.argv[2])
+linker_path = Path(sys.argv[3])
 udb_text = udb_path.read_text(encoding="utf-8")
 macro_text = macro_path.read_text(encoding="utf-8")
+linker_text = linker_path.read_text(encoding="utf-8")
 
 extension_block = udb_text.split("implemented_extensions:", 1)[1].split("\nparams:", 1)[0]
 extensions = re.findall(r"name:\s*([A-Za-z0-9]+)", extension_block)
@@ -119,6 +129,26 @@ if "#define RVMODEL_FENCEI" in macro_text:
 	raise SystemExit("RVMODEL_FENCEI must not be defined after ACT4 utils.h is processed")
 if "#ifdef ZIFENCEI_SUPPORTED" not in macro_text:
 	raise SystemExit("Missing Zifencei configuration guard")
+
+required_linker_tokens = [
+	".text.init",
+	".text.rvtest",
+	".rodata",
+	".data",
+	".bss",
+	"__bss_start",
+	"__bss_end",
+	"__stack_bottom",
+	"__stack_top",
+	".text.rvmodel",
+	".tohost",
+]
+for token in required_linker_tokens:
+	if token not in linker_text:
+		raise SystemExit(f"Missing ACT4 linker token: {token}")
+
+if linker_text.index(".tohost") < linker_text.index(".text.rvmodel"):
+	raise SystemExit("ACT4 .tohost must follow .text.rvmodel")
 PY
 
 bash -n "${root_dir}/tests/run_directed.sh"

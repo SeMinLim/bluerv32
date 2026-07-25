@@ -29,6 +29,12 @@ jobs:
       - name: Check out blueRV32
         uses: actions/checkout@v4
 
+      - name: Run repository lint
+        run: |
+          mkdir -p build
+          set -o pipefail
+          bash -x tests/lint.sh 2>&1 | tee build/lint.log
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -88,9 +94,6 @@ jobs:
           echo "$HOME/riscv/bin" >> "$GITHUB_PATH"
           "$HOME/riscv/bin/sail_riscv_sim" --version
 
-      - name: Run repository lint
-        run: make lint
-
       - name: Run ACT4 RV32I certification tests
         env:
           ACT4_DIR: /tmp/riscv-arch-test
@@ -102,11 +105,13 @@ jobs:
           ACT4_TIMEOUT: 300
         run: make test-act4
 
-      - name: Upload ACT4 results
+      - name: Upload ACT4 diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bluerv32-act4-results
-          path: build/act4
+          name: bluerv32-act4-diagnostics
+          path: |
+            build/lint.log
+            build/act4
           if-no-files-found: warn
           retention-days: 1

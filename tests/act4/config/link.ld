@@ -1,6 +1,9 @@
 OUTPUT_ARCH(riscv)
 ENTRY(rvtest_entry_point)
 
+__num_harts = 1;
+__stack_size = 0x00000400;
+
 MEMORY
 {
 	imem (rx)  : ORIGIN = 0x00000000, LENGTH = 0x00008000
@@ -22,9 +25,10 @@ SECTIONS
 	ASSERT(__imem_end <= ORIGIN(imem) + LENGTH(imem),
 		"ACT4 instruction image exceeds the 32 KiB instruction BRAM")
 
-	.tohost : {
-		. = ALIGN(8);
-		*(.tohost)
+	.rodata : {
+		. = ALIGN(0x4000);
+		*(.rodata)
+		*(.rodata.*)
 	} > dmem
 
 	.data : {
@@ -37,19 +41,33 @@ SECTIONS
 
 	.bss (NOLOAD) : {
 		. = ALIGN(16);
+		__bss_start = .;
 		*(.sbss)
 		*(.sbss.*)
 		*(.bss)
 		*(.bss.*)
 		*(COMMON)
+		__bss_end = .;
+	} > dmem
+
+	.stack (NOLOAD) : {
+		. = ALIGN(16);
+		__stack_bottom = .;
+		. = . + (__stack_size * __num_harts);
+		__stack_top = .;
 	} > dmem
 
 	.text.rvmodel : {
-		. = ALIGN(4);
+		. = ALIGN(0x1000);
 		*(.text.rvmodel)
 		*(.text.rvmodel.*)
 		*(.text)
 		*(.text.*)
+	} > dmem
+
+	.tohost : {
+		. = ALIGN(8);
+		*(.tohost)
 	} > dmem
 
 	__dmem_end = .;

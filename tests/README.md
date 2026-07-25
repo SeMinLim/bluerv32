@@ -18,4 +18,4 @@ make test-differential
 make test-act4 ACT4_DIR=/path/to/riscv-arch-test
 ```
 
-`make test-act4` generates every applicable RV32I self-checking ELF, runs the complete generated set on the blueRV32 Bluesim target, and delegates pass/fail collection to the official ACT4 runner. Results are stored under `build/act4/work/bluerv32-rv32i/`.
+`make test-act4` generates every applicable RV32I self-checking ELF, verifies the generated DUT configuration is `I`-only, audits each ELF for non-RV32I instructions, runs the complete audited set on the blueRV32 Bluesim target, and delegates pass/fail collection to the official ACT4 runner. Results are stored under `build/act4/work/bluerv32-rv32i/`.

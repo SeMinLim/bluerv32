@@ -1,45 +1,45 @@
 # blueRV32
 
-**A straightforward reference RV32I processor and bare-metal execution platform in Bluespec SystemVerilog.**
+**A reference-quality boilerplate codebase for synthesizable RV32 processor development in Bluespec SystemVerilog.**
 
-blueRV32 implements the complete 40-instruction RV32I base integer ISA with a
-32-bit address interface, strict instruction decoding, aligned memory accesses,
-memory fault responses, and precise external execution-environment traps. The
-reference core intentionally excludes `M`, `C`, `Zicsr`, and `Zifencei`.
+blueRV32 provides a clear multi-cycle processor, bare-metal software flow, Bluesim execution environment, ULX3S synthesis flow, and profile-aware verification environment.
 
-## Processor
+## Core profiles
 
-The reference processor is a clear multi-cycle implementation with explicit
-fetch, decode, execute, memory-response, and writeback stages. It supports:
+| Profile | ISA | Status |
+|---|---|---|
+| `rv32i` | RV32I | complete |
+| `rv32izmmul` | RV32I + Zmmul | complete |
+| `rv32im` | RV32I + M | planned |
 
-- all RV32I arithmetic, logical, shift, branch, jump, load, and store instructions,
-- `FENCE` as a conservative in-order fence,
-- precise `ECALL` and `EBREAK` traps,
-- illegal-instruction detection,
-- instruction, load, and store alignment checks,
-- instruction and data access-fault responses,
-- and architectural `x0`, PC, JAL, and JALR behavior.
+The RV32I profile implements the complete 40-instruction base integer ISA. The RV32IZmmul profile adds `MUL`, `MULH`, `MULHSU`, and `MULHU` while keeping `DIV`, `DIVU`, `REM`, and `REMU` illegal. Both profiles intentionally exclude `C`, `Zicsr`, and `Zifencei`.
 
 ## Repository hierarchy
 
 ```text
-processor/                 RV32I processor implementation
-system/                    BRAM, UART, address decoding, and simulation top
+profiles.mk                 Build-time core profile definitions
+processor/
+├── Defines.bsv             Architectural and processor-state types
+├── Decode.bsv              Strict instruction decoding
+├── Execute.bsv             RV32I ALU and control execution
+├── Multiplier.bsv          Registered Zmmul multiplier
+├── Processor.bsv           Multi-cycle processor control
+└── RFile.bsv               Architectural register file
+system/                     BRAM, UART, address decoding, and top modules
 software/
-├── runtime/               Bare-metal startup and linker script
-├── microbench/            RV32I microbenchmark
-├── pipesafe/              Dependency-safe pipeline test
-├── pipeunsafe1/           RAW dependency test
-├── pipeunsafe2/           Load-use dependency test
-└── minisudoku/            RV32I bare-metal C benchmark
-cpp/                       Bluesim binary loader and UART bridge
-ulx3s/                     ULX3S-85F constraints
+├── runtime/                Bare-metal startup and linker script
+├── microbench/             RV32 microbenchmark
+├── pipesafe/               Dependency-safe pipeline test
+├── pipeunsafe1/            RAW dependency test
+├── pipeunsafe2/            Load-use dependency test
+└── minisudoku/             Bare-metal C benchmark
+cpp/                        Bluesim binary loader and UART bridge
+ulx3s/                      ULX3S-85F constraints
 tests/
-├── directed/              Directed RV32I and fault tests
-├── differential/          Optional Spike trace comparison
-└── act4/                  ACT4 DUT configuration and complete runner
-build/software/<app>/      Generated ELF, BIN, dump, and simulation logs
-build/hardware/            Generated Verilog, reports, and bitstream
+├── directed/               Profile-aware directed and fault tests
+├── differential/           Optional Spike trace comparison
+└── act4/                   ACT4 configurations and complete runner
+build/<profile>/            Isolated software, simulation, test, and FPGA outputs
 ```
 
 ## Memory map
@@ -50,8 +50,7 @@ build/hardware/            Generated Verilog, reports, and bitstream
 0x1000_0000                  Byte-wide UART transmit register
 ```
 
-The RISC-V GNU toolchain generates one exactly 64 KiB binary. The first 32 KiB
-is loaded into instruction BRAM and the second 32 KiB into data BRAM.
+The software flow produces one exactly 64 KiB binary. The first 32 KiB is loaded into instruction BRAM and the second 32 KiB into data BRAM.
 
 ## Requirements
 
@@ -60,94 +59,69 @@ is loaded into instruction BRAM and the second 32 KiB into data BRAM.
 - Yosys, `nextpnr-ecp5`, and `ecppack` for ULX3S synthesis
 - `ujprog` for ULX3S programming
 - Spike for optional differential testing
-- ACT4, Sail RISC-V 0.13, and RISC-V GCC 15/Binutils 2.44 or Clang/LLVM 20 or later for certification testing
+- ACT4 and Sail RISC-V 0.13 for architectural certification testing
 
-## Install the RISC-V GNU toolchain
+On Ubuntu or Debian, the normal software flow can use:
 
-On Ubuntu or Debian, install the bare-metal compiler and binary utilities with:
-
-```bash
+```sh
 sudo apt update
 sudo apt install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
 ```
 
-Verify that the tools used by blueRV32 are available:
-
-```bash
-riscv64-unknown-elf-gcc --version
-riscv64-unknown-elf-objcopy --version
-riscv64-unknown-elf-objdump --version
-```
-
-The `riscv64-unknown-elf-` toolchain prefix can generate RV32I software because
-blueRV32 supplies `-march=rv32i -mabi=ilp32`. For other platforms or a source
-build, follow the official [RISC-V GNU Compiler Toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain) instructions.
-
-The distribution package is sufficient for the normal blueRV32 software flow,
-but ACT4 currently requires RISC-V GCC 15 and Binutils 2.44 or Clang/LLVM 20 or
-later. Build or install a current toolchain when the packaged version is older.
+The `riscv64-unknown-elf-` prefix can generate both profiles because blueRV32 supplies `-march=rv32i` or `-march=rv32i_zmmul` with `-mabi=ilp32`.
 
 ## Build and simulate
 
-```bash
-make list-software
-make software APP=minisudoku
-make runsim APP=minisudoku
+```sh
+make runsim PROFILE=rv32i APP=minisudoku
+make runsim PROFILE=rv32izmmul APP=minisudoku
 ```
 
-Generated software files are stored under:
+Generated files are isolated by profile:
 
 ```text
-build/software/<app>/<app>.elf
-build/software/<app>/<app>.bin
-build/software/<app>/<app>.dump
+build/<profile>/software/<app>/<app>.elf
+build/<profile>/software/<app>/<app>.bin
+build/<profile>/software/<app>/<app>.dump
+build/<profile>/software/<app>/output.log
+build/<profile>/software/<app>/system.log
 ```
 
 ## ULX3S-85F
 
-```bash
-make synth BOARD=ulx3s
-make program BOARD=ulx3s
+```sh
+make synth PROFILE=rv32i BOARD=ulx3s
+make synth PROFILE=rv32izmmul BOARD=ulx3s
+make program PROFILE=rv32izmmul BOARD=ulx3s
 ```
+
+`Multiplier.bsv` uses a generic full-product multiplication expression so Yosys may infer the target FPGA multiplier resources without embedding ECP5-specific primitives in the processor source.
 
 ## Verification
 
-```bash
+```sh
 make lint
-make test-directed
-make test-random
-make test-differential
+
+make test-directed PROFILE=rv32i
+make test-random PROFILE=rv32i
+make test-differential PROFILE=rv32i
+
+make test-directed PROFILE=rv32izmmul
+make test-random PROFILE=rv32izmmul
+make test-differential PROFILE=rv32izmmul
 ```
 
-`test-random` applies pseudo-random request backpressure and response latency.
-`test-differential` compares retired PC/instruction traces with Spike and is
-optional rather than a certification prerequisite.
+Spike differential testing is optional rather than an ACT4 prerequisite.
 
-### ACT4 RV32I certification tests
+### ACT4
 
-Install the current ACT4 dependencies described by the official
-[`riscv-arch-test`](https://github.com/riscv/riscv-arch-test) project, clone the
-repository, and trust its `mise` configuration when using `mise`:
-
-```bash
+```sh
 git clone https://github.com/riscv/riscv-arch-test.git
-cd riscv-arch-test
-mise trust .mise.toml
-cd /path/to/bluerv32
+
+make test-act4 PROFILE=rv32i \
+	ACT4_DIR=/path/to/riscv-arch-test
+make test-act4 PROFILE=rv32izmmul \
+	ACT4_DIR=/path/to/riscv-arch-test
 ```
 
-Generate and run every applicable RV32I self-checking ELF on blueRV32 Bluesim:
-
-```bash
-make test-act4 ACT4_DIR=/path/to/riscv-arch-test
-```
-
-`make test-arch` is retained as an alias. Results are stored under
-`build/act4/work/bluerv32-rv32i/`, ELF disassembly audits are stored under
-`build/act4/audit/`, and exact tool and source versions are recorded in
-`build/act4/versions.txt`.
-
-The ACT4 DUT configuration declares only the `I` extension. Privileged tests are
-disabled, required interrupt-operation macros are inert stubs, and the runner
-rejects Sm, Zicsr, Zifencei, M, C, CSR, privileged, or `fence.i` content before
-executing the generated ELFs on blueRV32.
+`make test-arch` is retained as an alias. Results and exact tool versions are stored under `build/<profile>/act4/`. The runner validates the DUT extension set and audits every generated ELF before Bluesim execution.

@@ -1,7 +1,10 @@
 ROOTDIR ?= $(abspath ..)
+PROFILE ?= rv32i
+include $(ROOTDIR)/profiles.mk
+
 APPS := microbench minisudoku pipesafe pipeunsafe1 pipeunsafe2
 APP ?= minisudoku
-MARCH ?= rv32i
+MARCH ?= $(PROFILE_MARCH)
 MABI ?= ilp32
 RISCV_PREFIX ?= riscv64-unknown-elf-
 BINARY_SIZE := 65536
@@ -12,7 +15,7 @@ OBJCOPY := $(RISCV_PREFIX)objcopy
 OBJDUMP := $(RISCV_PREFIX)objdump
 
 APP_DIR := $(CURDIR)/$(APP)
-BUILD_DIR := $(ROOTDIR)/build/software/$(APP)
+BUILD_DIR := $(ROOTDIR)/build/$(PROFILE)/software/$(APP)
 ELF := $(BUILD_DIR)/$(APP).elf
 BIN := $(BUILD_DIR)/$(APP).bin
 DUMP := $(BUILD_DIR)/$(APP).dump
@@ -45,7 +48,8 @@ OBJDUMP_FLAGS := -d -Mno-aliases
 .PHONY: all check clean list
 
 all: check $(BIN) $(DUMP)
-	@printf 'ELF:  %s\nBIN:  %s\nDUMP: %s\n' '$(ELF)' '$(BIN)' '$(DUMP)'
+	@printf 'Profile: %s\nELF:  %s\nBIN:  %s\nDUMP: %s\n' \
+		'$(PROFILE_NAME)' '$(ELF)' '$(BIN)' '$(DUMP)'
 
 check:
 	@case " $(APPS) " in *" $(APP) "*) ;; *) echo "Unknown APP=$(APP)" >&2; exit 2 ;; esac
@@ -70,4 +74,4 @@ list:
 	@printf '%s\n' $(APPS)
 
 clean:
-	rm -rf $(ROOTDIR)/build/software
+	rm -rf $(ROOTDIR)/build/$(PROFILE)/software

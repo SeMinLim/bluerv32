@@ -3,6 +3,9 @@ import Defines::*;
 typedef enum {
 	AluRegister,
 	AluImmediate,
+`ifdef RV32_ZMMUL
+	Multiply,
+`endif
 	Branch,
 	LoadUpperImmediate,
 	AddUpperImmediatePc,
@@ -29,6 +32,15 @@ typedef enum {
 	ShiftRightArithmetic
 } AluFunc deriving (Bits, Eq, FShow);
 
+`ifdef RV32_ZMMUL
+typedef enum {
+	MultiplyLow,
+	MultiplyHighSigned,
+	MultiplyHighSignedUnsigned,
+	MultiplyHighUnsigned
+} MultiplyFunc deriving (Bits, Eq, FShow);
+`endif
+
 typedef enum {
 	Equal,
 	NotEqual,
@@ -42,6 +54,9 @@ typedef struct {
 	InstructionType instructionType;
 	AluFunc aluFunc;
 	BranchFunc branchFunc;
+`ifdef RV32_ZMMUL
+	MultiplyFunc multiplyFunc;
+`endif
 	Bool valid;
 	Bool writeDst;
 	RIndx dst;
@@ -69,6 +84,9 @@ function DecodedInst defaultDecodedInst();
 		instructionType: IllegalInst,
 		aluFunc: Add,
 		branchFunc: Equal,
+`ifdef RV32_ZMMUL
+		multiplyFunc: MultiplyLow,
+`endif
 		valid: False,
 		writeDst: False,
 		dst: 0,
@@ -111,15 +129,37 @@ function DecodedInst decode(Bit#(32) instruction);
 					3'b110: begin decoded.valid = True; decoded.aluFunc = Or; end
 					3'b111: begin decoded.valid = True; decoded.aluFunc = And; end
 				endcase
+
+				if ( decoded.valid ) begin
+					decoded.instructionType = AluRegister;
+				end
 			end else if ( funct7 == 7'b0100000 ) begin
 				case ( funct3 )
 					3'b000: begin decoded.valid = True; decoded.aluFunc = Sub; end
 					3'b101: begin decoded.valid = True; decoded.aluFunc = ShiftRightArithmetic; end
 					default: begin end
 				endcase
+
+				if ( decoded.valid ) begin
+					decoded.instructionType = AluRegister;
+				end
+`ifdef RV32_ZMMUL
+			end else if ( funct7 == 7'b0000001 ) begin
+				case ( funct3 )
+					3'b000: begin decoded.valid = True; decoded.multiplyFunc = MultiplyLow; end
+					3'b001: begin decoded.valid = True; decoded.multiplyFunc = MultiplyHighSigned; end
+					3'b010: begin decoded.valid = True; decoded.multiplyFunc = MultiplyHighSignedUnsigned; end
+					3'b011: begin decoded.valid = True; decoded.multiplyFunc = MultiplyHighUnsigned; end
+					default: begin end
+				endcase
+
+				if ( decoded.valid ) begin
+					decoded.instructionType = Multiply;
+				end
+`endif
 			end
+
 			if ( decoded.valid ) begin
-				decoded.instructionType = AluRegister;
 				decoded.writeDst = True;
 				decoded.dst = dst;
 				decoded.src1 = src1;

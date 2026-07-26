@@ -1,4 +1,7 @@
-ROOTDIR := $(abspath ..)
+ROOTDIR ?= $(abspath ..)
+PROFILE ?= rv32i
+include $(ROOTDIR)/profiles.mk
+
 TEST ?= rv32i_basic
 RISCV_PREFIX ?= riscv64-unknown-elf-
 BINARY_SIZE := 65536
@@ -8,12 +11,11 @@ CC := $(RISCV_PREFIX)gcc
 OBJCOPY := $(RISCV_PREFIX)objcopy
 OBJDUMP := $(RISCV_PREFIX)objdump
 
-TESTS := \
+COMMON_TESTS := \
 	rv32i_basic \
 	rv32i_immediate \
 	rv32i_loadstore \
 	rv32i_illegal \
-	rv32i_m_illegal \
 	rv32i_ecall \
 	rv32i_load_misaligned \
 	rv32i_store_misaligned \
@@ -22,18 +24,30 @@ TESTS := \
 	rv32i_jump_misaligned \
 	rv32i_instruction_access \
 	rv32i_load_access \
-	rv32i_store_access \
-	rv32i_diff
+	rv32i_store_access
 
+ifeq ($(PROFILE),rv32i)
+PROFILE_TESTS := rv32i_m_illegal rv32i_diff
+else ifeq ($(PROFILE),rv32izmmul)
+PROFILE_TESTS := \
+	rv32izmmul \
+	rv32izmmul_div_illegal \
+	rv32izmmul_divu_illegal \
+	rv32izmmul_rem_illegal \
+	rv32izmmul_remu_illegal \
+	rv32izmmul_diff
+endif
+
+TESTS := $(COMMON_TESTS) $(PROFILE_TESTS)
 SOURCE := $(CURDIR)/directed/$(TEST).s
-BUILD_DIR := $(ROOTDIR)/build/tests/$(TEST)
+BUILD_DIR := $(ROOTDIR)/build/$(PROFILE)/tests/$(TEST)
 ELF := $(BUILD_DIR)/$(TEST).elf
 BIN := $(BUILD_DIR)/$(TEST).bin
 DUMP := $(BUILD_DIR)/$(TEST).dump
 LINKER := $(ROOTDIR)/software/runtime/bare-link.ld
 
 FLAGS := \
-	-march=rv32i \
+	-march=$(PROFILE_MARCH) \
 	-mabi=ilp32 \
 	-mcmodel=medany \
 	-msmall-data-limit=0 \
@@ -49,7 +63,8 @@ FLAGS := \
 build: check $(BIN) $(DUMP)
 
 check:
-	@case " $(TESTS) " in *" $(TEST) "*) ;; *) echo "Unknown TEST=$(TEST)" >&2; exit 2 ;; esac
+	@case " $(TESTS) " in *" $(TEST) "*) ;; *) echo "Unknown TEST=$(TEST) for PROFILE=$(PROFILE)" >&2; exit 2 ;; esac
+	@test -f "$(SOURCE)" || { echo "Test source not found: $(SOURCE)" >&2; exit 2; }
 	@command -v "$(CC)" >/dev/null || { echo "$(CC) not found" >&2; exit 127; }
 	@command -v "$(OBJCOPY)" >/dev/null || { echo "$(OBJCOPY) not found" >&2; exit 127; }
 	@command -v "$(OBJDUMP)" >/dev/null || { echo "$(OBJDUMP) not found" >&2; exit 127; }
@@ -66,18 +81,18 @@ $(DUMP): $(ELF)
 	$(OBJDUMP) -d -Mno-aliases $< > $@
 
 directed:
-	bash $(CURDIR)/run_directed.sh
+	PROFILE=$(PROFILE) bash $(CURDIR)/run_directed.sh
 
 random:
-	bash $(CURDIR)/run_random_memory.sh
+	PROFILE=$(PROFILE) bash $(CURDIR)/run_random_memory.sh
 
 differential:
-	bash $(CURDIR)/differential/run.sh
+	PROFILE=$(PROFILE) bash $(CURDIR)/differential/run.sh
 
 act4:
-	bash $(CURDIR)/act4/run.sh
+	PROFILE=$(PROFILE) bash $(CURDIR)/act4/run.sh
 
 arch-test: act4
 
 clean:
-	rm -rf $(ROOTDIR)/build/tests
+	rm -rf $(ROOTDIR)/build/$(PROFILE)/tests

@@ -1,23 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "$#" -ne 3 ]]; then
-	echo "Usage: $0 OBJDUMP ELF_DIR OUTPUT_DIR" >&2
+if [[ "$#" -ne 4 ]]; then
+	echo "Usage: $0 PROFILE OBJDUMP ELF_DIR OUTPUT_DIR" >&2
 	exit 2
 fi
 
-objdump="$1"
-elf_dir="$2"
-output_dir="$3"
+profile="$1"
+objdump="$2"
+elf_dir="$3"
+output_dir="$4"
 
 if [[ ! -d "${elf_dir}" ]]; then
 	echo "ACT4 ELF directory not found: ${elf_dir}" >&2
 	exit 2
 fi
 
-mkdir -p "${output_dir}"
+case "${profile}" in
+	rv32i)
+		forbidden_regex='[[:space:]](fence\.i|csrrw|csrrs|csrrc|csrrwi|csrrsi|csrrci|mret|sret|uret|dret|mnret|wfi|sfence\.vma|hfence\.[a-z0-9_.]+|mul|mulh|mulhsu|mulhu|div|divu|rem|remu|c\.[a-z0-9_.]+)([[:space:]]|$)'
+		;;
+	rv32izmmul)
+		forbidden_regex='[[:space:]](fence\.i|csrrw|csrrs|csrrc|csrrwi|csrrsi|csrrci|mret|sret|uret|dret|mnret|wfi|sfence\.vma|hfence\.[a-z0-9_.]+|div|divu|rem|remu|c\.[a-z0-9_.]+)([[:space:]]|$)'
+		;;
+	*)
+		echo "Unsupported PROFILE=${profile}" >&2
+		exit 2
+		;;
+esac
 
-forbidden_regex='[[:space:]](fence\.i|csrrw|csrrs|csrrc|csrrwi|csrrsi|csrrci|mret|sret|uret|dret|mnret|wfi|sfence\.vma|hfence\.[a-z0-9_.]+|mul|mulh|mulhsu|mulhu|div|divu|rem|remu|c\.[a-z0-9_.]+)([[:space:]]|$)'
+mkdir -p "${output_dir}"
 elf_count=0
 
 while IFS= read -r -d '' elf; do
@@ -28,7 +40,7 @@ while IFS= read -r -d '' elf; do
 	"${objdump}" -d -M no-aliases,numeric "${elf}" > "${dump_path}"
 
 	if grep -E -i -q "${forbidden_regex}" "${dump_path}"; then
-		echo "ACT4 generated a non-RV32I instruction: ${relative_elf}" >&2
+		echo "ACT4 generated an instruction outside ${profile}: ${relative_elf}" >&2
 		grep -E -i "${forbidden_regex}" "${dump_path}" >&2
 		exit 1
 	fi
@@ -41,4 +53,4 @@ if [[ "${elf_count}" -eq 0 ]]; then
 	exit 2
 fi
 
-printf 'ACT4 RV32I ELF audit: PASS (%d files)\n' "${elf_count}"
+printf 'ACT4 %s ELF audit: PASS (%d files)\n' "${profile}" "${elf_count}"

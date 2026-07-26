@@ -6,6 +6,12 @@ import shutil
 from pathlib import Path
 
 
+SUPPORTED_CONFIGS = {
+	"bluerv32-rv32i": False,
+	"bluerv32-rv32izmmul": True,
+}
+
+
 def stripJsonComments(text: str) -> str:
 	result: list[str] = []
 	idx = 0
@@ -54,7 +60,11 @@ def stripJsonComments(text: str) -> str:
 	return "".join(result)
 
 
-def patchSailConfig(sourcePath: Path, outputPath: Path) -> None:
+def patchSailConfig(
+	sourcePath: Path,
+	outputPath: Path,
+	zmmulSupported: bool,
+) -> None:
 	configText = sourcePath.read_text(encoding="utf-8")
 	config = json.loads(stripJsonComments(configText))
 	memory = config["memory"]
@@ -80,6 +90,12 @@ def patchSailConfig(sourcePath: Path, outputPath: Path) -> None:
 	memory["regions"] = [mainRegion]
 	memory["dtb_address"]["value"] = "0x00000000"
 
+	extensions = config["extensions"]
+	extensions["M"]["supported"] = False
+	extensions["Zmmul"]["supported"] = zmmulSupported
+	extensions["Zicsr"]["supported"] = False
+	extensions["Zifencei"]["supported"] = False
+
 	platform = config.get("platform", {})
 	for peripheralName in ("clint", "simple_interrupt_generator"):
 		peripheral = platform.get(peripheralName)
@@ -97,16 +113,17 @@ def patchSailConfig(sourcePath: Path, outputPath: Path) -> None:
 
 def writeFrameworkConfig(
 	outputPath: Path,
+	configName: str,
 	compiler: str,
 	objdump: str,
 	referenceModel: str,
 ) -> None:
 	content = "\n".join([
-		"name: bluerv32-rv32i",
+		f"name: {configName}",
 		f"compiler_exe: {json.dumps(compiler)}",
 		f"objdump_exe: {json.dumps(objdump)}",
 		f"ref_model_exe: {json.dumps(referenceModel)}",
-		"udb_config: bluerv32-rv32i.yaml",
+		f"udb_config: {configName}.yaml",
 		"linker_script: link.ld",
 		"dut_include_dir: .",
 		"include_priv_tests: false",
@@ -122,6 +139,11 @@ def main() -> int:
 	parser.add_argument("--act4-dir", required=True, type=Path)
 	parser.add_argument("--source-dir", required=True, type=Path)
 	parser.add_argument("--output-dir", required=True, type=Path)
+	parser.add_argument(
+		"--config-name",
+		required=True,
+		choices=tuple(SUPPORTED_CONFIGS),
+	)
 	parser.add_argument("--compiler", required=True)
 	parser.add_argument("--objdump", required=True)
 	parser.add_argument("--reference-model", required=True)
@@ -133,13 +155,23 @@ def main() -> int:
 	if not sailSource.is_file():
 		raise FileNotFoundError(f"ACT4 Sail config not found: {sailSource}")
 
+	udbName = f"{args.config_name}.yaml"
+	udbSource = args.source_dir / udbName
+	if not udbSource.is_file():
+		raise FileNotFoundError(f"blueRV32 ACT4 UDB config not found: {udbSource}")
+
 	args.output_dir.mkdir(parents=True, exist_ok=True)
-	for fileName in ("bluerv32-rv32i.yaml", "link.ld", "rvmodel_macros.h"):
+	for fileName in (udbName, "link.ld", "rvmodel_macros.h"):
 		shutil.copy2(args.source_dir / fileName, args.output_dir / fileName)
 
-	patchSailConfig(sailSource, args.output_dir / "sail.json")
+	patchSailConfig(
+		sailSource,
+		args.output_dir / "sail.json",
+		SUPPORTED_CONFIGS[args.config_name],
+	)
 	writeFrameworkConfig(
 		args.output_dir / "test_config.yaml",
+		args.config_name,
 		args.compiler,
 		args.objdump,
 		args.reference_model,

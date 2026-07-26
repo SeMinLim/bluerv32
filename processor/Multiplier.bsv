@@ -10,7 +10,7 @@ typedef struct {
 } MultiplyRequest deriving (Bits, Eq, FShow);
 
 interface MultiplierIfc;
-	method Action request(MultiplyRequest request);
+	method Action request(MultiplyRequest value);
 	method ActionValue#(Word) response;
 endinterface
 
@@ -56,8 +56,8 @@ module mkMultiplier(MultiplierIfc);
 		responseQ.enq(multiplyResult(request));
 	endrule
 
-	method Action request(MultiplyRequest request);
-		requestQ.enq(request);
+	method Action request(MultiplyRequest value);
+		requestQ.enq(value);
 	endmethod
 
 	method ActionValue#(Word) response;

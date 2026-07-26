@@ -4,6 +4,9 @@ import Defines::*;
 import Decode::*;
 import Execute::*;
 import RFile::*;
+`ifdef RV32_ZMMUL
+import Multiplier::*;
+`endif
 
 typedef struct {
 	Word pc;
@@ -72,6 +75,9 @@ module mkProcessor(ProcessorIfc);
 	Reg#(Word) pc <- mkReg(0);
 	Reg#(ProcessorState) state <- mkReg(FetchRequest);
 	RFile2R1W registerFile <- mkRFile2R1W;
+`ifdef RV32_ZMMUL
+	MultiplierIfc multiplier <- mkMultiplier;
+`endif
 
 	Reg#(Word) instructionR <- mkReg(0);
 	Reg#(DecodedInst) decodedR <- mkReg(defaultDecodedInst());
@@ -127,7 +133,7 @@ module mkProcessor(ProcessorIfc);
 
 	//------------------------------------------------------------------------------------
 	// [DECODE]
-	// Validate the complete RV32I encoding and read architectural registers
+	// Validate the complete selected-profile encoding and read architectural registers
 	//------------------------------------------------------------------------------------
 	rule decodeInstruction ( state == DecodeStage );
 		DecodedInst decoded = decode(instructionR);
@@ -145,7 +151,7 @@ module mkProcessor(ProcessorIfc);
 
 	//------------------------------------------------------------------------------------
 	// [EXECUTE]
-	// Execute arithmetic and control operations or issue one data-memory request
+	// Execute arithmetic and control operations or issue one multi-cycle request
 	//------------------------------------------------------------------------------------
 	rule executeInstruction ( state == ExecuteStage );
 		ExecInst executed = execute(decodedR, src1R, src2R, pc);
@@ -156,6 +162,23 @@ module mkProcessor(ProcessorIfc);
 		end else if ( decodedR.instructionType == BreakpointInst ) begin
 			trapQ.enq(makeTrap(pc, Breakpoint, pc));
 			state <= Trapped;
+`ifdef RV32_ZMMUL
+		end else if ( decodedR.instructionType == Multiply ) begin
+			multiplier.request(MultiplyRequest {
+				multiplyFunc: decodedR.multiplyFunc,
+				src1: src1R,
+				src2: src2R
+			});
+			writebackR <= WritebackInfo {
+				pc: pc,
+				instruction: instructionR,
+				nextPc: executed.nextPc,
+				dst: decodedR.dst,
+				writeDst: decodedR.writeDst,
+				data: 0
+			};
+			state <= MultiplyResponse;
+`endif
 		end else if ( executed.controlTransfer && executed.nextPc[1:0] != 0 ) begin
 			trapQ.enq(makeTrap(pc, InstructionAddressMisaligned, executed.nextPc));
 			state <= Trapped;
@@ -200,6 +223,20 @@ module mkProcessor(ProcessorIfc);
 			state <= WritebackStage;
 		end
 	endrule
+
+`ifdef RV32_ZMMUL
+	//------------------------------------------------------------------------------------
+	// [MULTIPLY]
+	// Receive the registered Zmmul result before architectural writeback
+	//------------------------------------------------------------------------------------
+	rule receiveMultiplyResponse ( state == MultiplyResponse );
+		Word data <- multiplier.response;
+		WritebackInfo info = writebackR;
+		info.data = data;
+		writebackR <= info;
+		state <= WritebackStage;
+	endrule
+`endif
 
 	//------------------------------------------------------------------------------------
 	// [MEMORY]

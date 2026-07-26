@@ -3,19 +3,38 @@ set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 test_dir="${root_dir}/tests"
+profile="${PROFILE:-rv32i}"
 
 command -v spike >/dev/null || { echo 'spike not found' >&2; exit 127; }
 
-make -C "${test_dir}" build TEST=rv32i_diff
-make -C "${root_dir}" bsim BSC_DEFINES='-D RV32_TRACE'
+case "${profile}" in
+	rv32i)
+		test_name='rv32i_diff'
+		spike_isa='RV32I'
+		;;
+	rv32izmmul)
+		test_name='rv32izmmul_diff'
+		spike_isa='RV32I_Zmmul'
+		;;
+	*)
+		echo "Unsupported PROFILE=${profile}" >&2
+		exit 2
+		;;
+esac
 
-elf="${root_dir}/build/tests/rv32i_diff/rv32i_diff.elf"
-binary="${root_dir}/build/tests/rv32i_diff/rv32i_diff.bin"
-core_log="${root_dir}/build/tests/rv32i_diff/core.log"
-spike_log="${root_dir}/build/tests/rv32i_diff/spike.log"
+make -C "${test_dir}" ROOTDIR="${root_dir}" PROFILE="${profile}" \
+	build TEST="${test_name}"
+make -C "${root_dir}" bsim PROFILE="${profile}" BSC_DEFINES='-D RV32_TRACE'
 
-BLUERV32_BIN="${binary}" "${root_dir}/build/sim/bsim" >"${core_log}" 2>&1
-spike --isa=RV32I --pc=0 -m0x0:0x10000 -l "${elf}" \
+build_dir="${root_dir}/build/${profile}/tests/${test_name}"
+elf="${build_dir}/${test_name}.elf"
+binary="${build_dir}/${test_name}.bin"
+core_log="${build_dir}/core.log"
+spike_log="${build_dir}/spike.log"
+
+BLUERV32_BIN="${binary}" \
+	"${root_dir}/build/${profile}/sim/bsim" >"${core_log}" 2>&1
+spike --isa="${spike_isa}" --pc=0 -m0x0:0x10000 -l "${elf}" \
 	>/dev/null 2>"${spike_log}" || true
 
 python3 "${test_dir}/differential/compare_spike.py" \

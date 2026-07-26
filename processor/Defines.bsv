@@ -12,6 +12,9 @@ typedef enum {
 	FetchResponse,
 	DecodeStage,
 	ExecuteStage,
+`ifdef RV32_ZMMUL
+	MultiplyResponse,
+`endif
 	DataResponse,
 	WritebackStage,
 	Trapped

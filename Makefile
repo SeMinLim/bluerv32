@@ -1,4 +1,7 @@
 ROOTDIR := $(abspath .)
+PROFILE ?= rv32i
+include $(ROOTDIR)/profiles.mk
+
 APP ?= minisudoku
 BOARD ?= ulx3s
 BIN ?=
@@ -10,11 +13,12 @@ ECPPACK ?= ecppack
 PROGRAMMER ?= ujprog
 BSC_DEFINES ?=
 
-BUILD_DIR := $(ROOTDIR)/build/hardware
-BSIM_DIR := $(ROOTDIR)/build/sim
-SOFTWARE_BIN := $(ROOTDIR)/build/software/$(APP)/$(APP).bin
-SOFTWARE_OUTPUT := $(ROOTDIR)/build/software/$(APP)/output.log
-SOFTWARE_SYSTEM_LOG := $(ROOTDIR)/build/software/$(APP)/system.log
+PROFILE_BUILD_DIR := $(ROOTDIR)/build/$(PROFILE)
+BUILD_DIR := $(PROFILE_BUILD_DIR)/hardware
+BSIM_DIR := $(PROFILE_BUILD_DIR)/sim
+SOFTWARE_BIN := $(PROFILE_BUILD_DIR)/software/$(APP)/$(APP).bin
+SOFTWARE_OUTPUT := $(PROFILE_BUILD_DIR)/software/$(APP)/output.log
+SOFTWARE_SYSTEM_LOG := $(PROFILE_BUILD_DIR)/software/$(APP)/system.log
 TOP_SOURCE := $(ROOTDIR)/system/Top.bsv
 TOP_MODULE := mkTop
 BSIM_TOP_MODULE := mkTop_bsim
@@ -26,6 +30,7 @@ BITSTREAM := $(BUILD_DIR)/$(TOP_MODULE).bit
 YOSYS_REPORT := $(BUILD_DIR)/$(TOP_MODULE).yosys.rpt
 NEXTPNR_REPORT := $(BUILD_DIR)/$(TOP_MODULE).nextpnr.json
 NEXTPNR_LOG := $(BUILD_DIR)/$(TOP_MODULE).nextpnr.log
+ALL_BSC_DEFINES := $(PROFILE_BSC_DEFINES) $(BSC_DEFINES)
 
 BSC_BIN := $(shell command -v $(BSC) 2>/dev/null)
 BLUESPECDIR ?= $(abspath $(dir $(BSC_BIN))/../lib)
@@ -60,27 +65,27 @@ BSCFLAGS_BSIM := \
 .PHONY: all help software list-software check-bsc check-fpga-tools \
 	verilog netlist pnr bitstream synth bsim runsim runsim-bin program \
 	lint test test-directed test-random test-differential test-act4 \
-	test-arch clean
+	test-arch clean clean-profile
 
 all: bsim
 
 help:
 	@printf '%s\n' \
-		'make software APP=minisudoku' \
-		'make runsim APP=minisudoku' \
-		'make synth BOARD=ulx3s' \
-		'make program BOARD=ulx3s' \
-		'make test-directed' \
-		'make test-random' \
-		'make test-differential' \
-		'make test-act4 ACT4_DIR=/path/to/riscv-arch-test' \
+		'make runsim PROFILE=rv32i APP=minisudoku' \
+		'make runsim PROFILE=rv32izmmul APP=minisudoku' \
+		'make synth PROFILE=rv32izmmul BOARD=ulx3s' \
+		'make program PROFILE=rv32izmmul BOARD=ulx3s' \
+		'make test-directed PROFILE=rv32i' \
+		'make test-directed PROFILE=rv32izmmul' \
+		'make test-differential PROFILE=rv32izmmul' \
+		'make test-act4 PROFILE=rv32izmmul ACT4_DIR=/path/to/riscv-arch-test' \
 		'make lint'
 
 software:
-	+$(MAKE) -C software ROOTDIR=$(ROOTDIR) APP=$(APP)
+	+$(MAKE) -C software ROOTDIR=$(ROOTDIR) PROFILE=$(PROFILE) APP=$(APP)
 
 list-software:
-	+$(MAKE) -C software ROOTDIR=$(ROOTDIR) list
+	+$(MAKE) -C software ROOTDIR=$(ROOTDIR) PROFILE=$(PROFILE) list
 
 check-bsc:
 	@command -v $(BSC) >/dev/null || { echo 'bsc not found' >&2; exit 127; }
@@ -99,7 +104,7 @@ check-fpga-tools:
 verilog: check-bsc
 	rm -rf $(BUILD_DIR)
 	mkdir -p $(BUILD_DIR)
-	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_SYNTH) $(BSC_DEFINES) -remove-dollar \
+	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_SYNTH) $(ALL_BSC_DEFINES) -remove-dollar \
 		-p +:$(BSV_PATH) -verilog -u -g $(TOP_MODULE) $(TOP_SOURCE)
 	cp $(CONSTRAINTS) $(BUILD_DIR)/
 	@for file in $(BSC_RTL_FILES); do \
@@ -130,15 +135,15 @@ bitstream: pnr
 	$(ECPPACK) --idcode 0x41113043 $(TEXTCFG) $(BITSTREAM)
 
 synth: bitstream
-	@printf 'Bitstream:      %s\nYosys report:   %s\nnextpnr report: %s\n' \
-		'$(BITSTREAM)' '$(YOSYS_REPORT)' '$(NEXTPNR_REPORT)'
+	@printf 'Profile:        %s\nBitstream:      %s\nYosys report:   %s\nnextpnr report: %s\n' \
+		'$(PROFILE_NAME)' '$(BITSTREAM)' '$(YOSYS_REPORT)' '$(NEXTPNR_REPORT)'
 
 bsim: check-bsc
 	rm -rf $(BSIM_DIR)
 	mkdir -p $(BSIM_DIR)
-	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_BSIM) $(BSC_DEFINES) \
+	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_BSIM) $(ALL_BSC_DEFINES) \
 		-p +:$(BSV_PATH) -sim -u -g $(BSIM_TOP_MODULE) $(TOP_SOURCE)
-	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_BSIM) $(BSC_DEFINES) \
+	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_BSIM) $(ALL_BSC_DEFINES) \
 		-sim -e $(BSIM_TOP_MODULE) -o $(BSIM_DIR)/bsim \
 		$(BSIM_DIR)/*.ba $(ROOTDIR)/cpp/main.cpp
 
@@ -149,7 +154,7 @@ runsim: software bsim
 		| tee "$(SOFTWARE_SYSTEM_LOG)"'
 	@printf '%s\n' \
 		'---------------------------------------------------------------------' \
-		'[RESULT] RV32I simulation completed successfully.' \
+		'[RESULT] $(PROFILE_NAME) simulation completed successfully.' \
 		'Program output: $(SOFTWARE_OUTPUT)' \
 		'Simulation log: $(SOFTWARE_SYSTEM_LOG)' \
 		'---------------------------------------------------------------------'
@@ -169,18 +174,21 @@ lint:
 test: test-directed test-random
 
 test-directed:
-	+$(MAKE) -C tests directed
+	+$(MAKE) -C tests ROOTDIR=$(ROOTDIR) PROFILE=$(PROFILE) directed
 
 test-random:
-	+$(MAKE) -C tests random
+	+$(MAKE) -C tests ROOTDIR=$(ROOTDIR) PROFILE=$(PROFILE) random
 
 test-differential:
-	+$(MAKE) -C tests differential
+	+$(MAKE) -C tests ROOTDIR=$(ROOTDIR) PROFILE=$(PROFILE) differential
 
 test-act4:
-	+$(MAKE) -C tests act4
+	+$(MAKE) -C tests ROOTDIR=$(ROOTDIR) PROFILE=$(PROFILE) act4
 
 test-arch: test-act4
+
+clean-profile:
+	rm -rf $(PROFILE_BUILD_DIR)
 
 clean:
 	rm -rf $(ROOTDIR)/build

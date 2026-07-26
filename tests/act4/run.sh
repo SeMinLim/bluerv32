@@ -2,6 +2,7 @@
 set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+profile="${PROFILE:-rv32i}"
 act4_dir="${ACT4_DIR:-}"
 act4_jobs="${ACT4_JOBS:-$(nproc)}"
 act4_timeout="${ACT4_TIMEOUT:-300}"
@@ -11,14 +12,30 @@ act4_objcopy="${ACT4_OBJCOPY:-${riscv_prefix}objcopy}"
 act4_objdump="${ACT4_OBJDUMP:-${riscv_prefix}objdump}"
 act4_sail="${ACT4_SAIL:-sail_riscv_sim}"
 config_source_dir="${root_dir}/tests/act4/config"
-build_dir="${root_dir}/build/act4"
+build_dir="${root_dir}/build/${profile}/act4"
 config_dir="${build_dir}/config"
 work_dir="${build_dir}/work"
-summary_dir="${work_dir}/bluerv32-rv32i"
+audit_dir="${build_dir}/audit"
+
+case "${profile}" in
+	rv32i)
+		act4_config='bluerv32-rv32i'
+		act4_extensions='I'
+		;;
+	rv32izmmul)
+		act4_config='bluerv32-rv32izmmul'
+		act4_extensions='I,Zmmul'
+		;;
+	*)
+		echo "Unsupported PROFILE=${profile}" >&2
+		exit 2
+		;;
+esac
+
+summary_dir="${work_dir}/${act4_config}"
 elf_dir="${summary_dir}/elfs"
 extensions_file="${summary_dir}/extensions.txt"
 rvtest_config_file="${summary_dir}/rvtest_config.h"
-audit_dir="${build_dir}/audit"
 
 if [[ -z "${act4_dir}" ]]; then
 	echo "Set ACT4_DIR to a riscv/riscv-arch-test checkout." >&2
@@ -63,6 +80,7 @@ python3 "${root_dir}/tests/act4/prepare_config.py" \
 	--act4-dir "${act4_dir}" \
 	--source-dir "${config_source_dir}" \
 	--output-dir "${config_dir}" \
+	--config-name "${act4_config}" \
 	--compiler "${act4_cc}" \
 	--objdump "${act4_objdump}" \
 	--reference-model "${act4_sail}"
@@ -70,6 +88,7 @@ python3 "${root_dir}/tests/act4/prepare_config.py" \
 {
 	printf 'blueRV32 commit: '
 	git -C "${root_dir}" rev-parse HEAD 2>/dev/null || printf 'unknown\n'
+	printf 'Profile: %s\n' "${profile}"
 	printf 'ACT4 commit: '
 	git -C "${act4_dir}" rev-parse HEAD 2>/dev/null || printf 'unknown\n'
 	printf 'Compiler: '
@@ -80,12 +99,12 @@ python3 "${root_dir}/tests/act4/prepare_config.py" \
 	"${act4_sail}" --version
 } > "${build_dir}/versions.txt"
 
-make -C "${root_dir}" bsim BSC_DEFINES='-D RV32_ACT4'
+make -C "${root_dir}" bsim PROFILE="${profile}" BSC_DEFINES='-D RV32_ACT4'
 
 make -C "${act4_dir}" elfs \
 	CONFIG_FILES="${config_dir}/test_config.yaml" \
 	WORKDIR="${work_dir}" \
-	EXTENSIONS=I \
+	EXTENSIONS="${act4_extensions}" \
 	EXCLUDE_EXTENSIONS= \
 	FAST=True \
 	JOBS="${act4_jobs}"
@@ -97,9 +116,10 @@ for file in "${extensions_file}" "${rvtest_config_file}"; do
 	fi
 done
 
-mapfile -t act4_extensions < <(sed '/^[[:space:]]*$/d' "${extensions_file}" | sort -u)
-if [[ "${#act4_extensions[@]}" -ne 1 || "${act4_extensions[0]}" != 'I' ]]; then
-	echo "ACT4 DUT configuration is not RV32I-only: ${act4_extensions[*]}" >&2
+actual_extensions="$(sed '/^[[:space:]]*$/d' "${extensions_file}" | sort -u | paste -sd, -)"
+expected_extensions="$(printf '%s\n' "${act4_extensions}" | tr ',' '\n' | sort -u | paste -sd, -)"
+if [[ "${actual_extensions}" != "${expected_extensions}" ]]; then
+	echo "ACT4 DUT configuration does not match ${profile}: ${actual_extensions}" >&2
 	exit 2
 fi
 
@@ -118,22 +138,32 @@ fi
 
 mapfile -d '' act4_elfs < <(find "${elf_dir}" -type f -name '*.elf' -print0 | sort -z)
 if [[ "${#act4_elfs[@]}" -eq 0 ]]; then
-	echo "ACT4 generated no RV32I ELF files." >&2
+	echo "ACT4 generated no ELF files for ${profile}." >&2
 	exit 2
 fi
 
 for elf in "${act4_elfs[@]}"; do
 	relative_elf="${elf#${elf_dir}/}"
-	if [[ "/${relative_elf}/" != *'/I/'* ]]; then
-		echo "ACT4 generated a non-I test despite EXTENSIONS=I: ${relative_elf}" >&2
-		exit 2
-	fi
+	case "/${relative_elf}/" in
+		*'/I/'*)
+			;;
+		*'/Zmmul/'*)
+			if [[ "${profile}" != 'rv32izmmul' ]]; then
+				echo "ACT4 generated a Zmmul test for ${profile}: ${relative_elf}" >&2
+				exit 2
+			fi
+			;;
+		*)
+			echo "ACT4 generated a test outside ${act4_extensions}: ${relative_elf}" >&2
+			exit 2
+			;;
+	esac
 done
 
 bash "${root_dir}/tests/act4/audit_elfs.sh" \
-	"${act4_objdump}" "${elf_dir}" "${audit_dir}"
+	"${profile}" "${act4_objdump}" "${elf_dir}" "${audit_dir}"
 
-export BLUERV32_BSIM="${root_dir}/build/sim/bsim"
+export BLUERV32_BSIM="${root_dir}/build/${profile}/sim/bsim"
 export BLUERV32_ACT4_IMAGE_DIR="${build_dir}/images"
 export ACT4_OBJCOPY="${act4_objcopy}"
 
@@ -145,7 +175,7 @@ python3 "${act4_dir}/run_tests.py" \
 
 printf '%s\n' \
 	'---------------------------------------------------------------------' \
-	'[RESULT] ACT4 RV32I certification tests completed successfully.' \
+	"[RESULT] ACT4 ${profile} certification tests completed successfully." \
 	"Tests: ${#act4_elfs[@]}" \
 	"Results: ${summary_dir}" \
 	"ELF audit: ${audit_dir}" \

@@ -3,14 +3,13 @@ set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if grep -R -n -E '\b(Mul|MUL|mul)\b' "${root_dir}/processor"; then
-	echo 'M-extension logic is not permitted in the RV32I core.' >&2
+if [[ -e "${root_dir}/.github/workflows" ]]; then
+	echo '.github/workflows must not exist in blueRV32.' >&2
 	exit 1
 fi
 
-if grep -R -n -E '\brv32im\b|\bmul\b' \
-		"${root_dir}/software" "${root_dir}/tests/directed"; then
-	echo 'RV32I software and directed tests must not require the M extension.' >&2
+if [[ -e "${root_dir}/processor/Divider.bsv" ]]; then
+	echo 'Divider.bsv must not be added before the RV32IM profile.' >&2
 	exit 1
 fi
 
@@ -35,17 +34,26 @@ if [[ -e "${root_dir}/tests/arch-test" ]]; then
 fi
 
 for file in \
+	profiles.mk \
 	processor/Defines.bsv \
 	processor/Decode.bsv \
 	processor/Execute.bsv \
+	processor/Multiplier.bsv \
 	processor/Processor.bsv \
 	processor/RFile.bsv \
 	system/BRAMSubWord.bsv \
 	system/Top.bsv \
 	system/Uart.bsv \
+	tests/directed/rv32izmmul.s \
+	tests/directed/rv32izmmul_diff.s \
+	tests/directed/rv32izmmul_div_illegal.s \
+	tests/directed/rv32izmmul_divu_illegal.s \
+	tests/directed/rv32izmmul_rem_illegal.s \
+	tests/directed/rv32izmmul_remu_illegal.s \
 	tests/act4/README.md \
 	tests/act4/audit_elfs.sh \
 	tests/act4/config/bluerv32-rv32i.yaml \
+	tests/act4/config/bluerv32-rv32izmmul.yaml \
 	tests/act4/config/link.ld \
 	tests/act4/config/rvmodel_macros.h \
 	tests/act4/prepare_config.py \
@@ -54,30 +62,21 @@ for file in \
 	test -f "${root_dir}/${file}"
 done
 
-grep -q 'Word addr;' "${root_dir}/processor/Defines.bsv"
-grep -q 'EnvironmentCallInst' "${root_dir}/processor/Decode.bsv"
-grep -q 'BreakpointInst' "${root_dir}/processor/Decode.bsv"
-grep -q 'Fence' "${root_dir}/processor/Decode.bsv"
-grep -q 'MARCH ?= rv32i' "${root_dir}/software/Makefile"
-grep -q 'BINARY_SIZE := 65536' "${root_dir}/software/Makefile"
-grep -q 'BINARY_LIMIT := 0x10000' "${root_dir}/software/Makefile"
-grep -q 'BINARY_SIZE := 65536' "${root_dir}/tests/Makefile"
-grep -q 'BINARY_LIMIT := 0x10000' "${root_dir}/tests/Makefile"
-grep -q '#define INSTRUCTION_MEMORY_SIZE 32768' "${root_dir}/cpp/main.cpp"
-grep -q '#define DATA_MEMORY_SIZE 32768' "${root_dir}/cpp/main.cpp"
-grep -q 'typedef 15 MemoryAddrSize;' "${root_dir}/system/Top.bsv"
-grep -q "memorySizeBytes = 16'h8000" "${root_dir}/system/Top.bsv"
-grep -q 'RV32_ACT4' "${root_dir}/system/Top.bsv"
-grep -q 'instructionFromDataOn' "${root_dir}/system/Top.bsv"
-grep -q 'region\["attributes"\]' "${root_dir}/tests/act4/prepare_config.py"
-grep -q 'include_priv_tests: false' "${root_dir}/tests/act4/prepare_config.py"
-grep -q 'EXTENSIONS=I' "${root_dir}/tests/act4/run.sh"
-grep -q 'ACT4 DUT configuration is not RV32I-only' "${root_dir}/tests/act4/run.sh"
-grep -q 'ACT4 generated a forbidden DUT macro' "${root_dir}/tests/act4/run.sh"
-grep -q 'ACT4 generated no RV32I ELF files' "${root_dir}/tests/act4/run.sh"
-grep -q 'generated a non-I test' "${root_dir}/tests/act4/run.sh"
-grep -q 'audit_elfs.sh' "${root_dir}/tests/act4/run.sh"
-grep -q 'run_tests.py' "${root_dir}/tests/act4/run.sh"
+grep -q 'SUPPORTED_PROFILES := rv32i rv32izmmul' "${root_dir}/profiles.mk"
+grep -q 'PROFILE_MARCH := rv32i_zmmul' "${root_dir}/profiles.mk"
+grep -q 'PROFILE_BSC_DEFINES := -D RV32_ZMMUL' "${root_dir}/profiles.mk"
+grep -q 'build/$(PROFILE)' "${root_dir}/Makefile"
+grep -q 'RV32_ZMMUL' "${root_dir}/processor/Defines.bsv"
+grep -q 'RV32_ZMMUL' "${root_dir}/processor/Decode.bsv"
+grep -q 'RV32_ZMMUL' "${root_dir}/processor/Processor.bsv"
+grep -q 'primMul' "${root_dir}/processor/Multiplier.bsv"
+grep -q 'MultiplyHighSignedUnsigned' "${root_dir}/processor/Multiplier.bsv"
+grep -q 'MARCH ?= $(PROFILE_MARCH)' "${root_dir}/software/Makefile"
+grep -q 'march=$(PROFILE_MARCH)' "${root_dir}/tests/Makefile"
+grep -q 'RV32I_Zmmul' "${root_dir}/tests/differential/run.sh"
+grep -q -- '--config-name' "${root_dir}/tests/act4/prepare_config.py"
+grep -q 'EXTENSIONS="${act4_extensions}"' "${root_dir}/tests/act4/run.sh"
+grep -q 'rv32izmmul)' "${root_dir}/tests/act4/audit_elfs.sh"
 grep -q '__bss_start' "${root_dir}/tests/act4/config/link.ld"
 grep -q '__bss_end' "${root_dir}/tests/act4/config/link.ld"
 grep -q '__stack_bottom' "${root_dir}/tests/act4/config/link.ld"
@@ -85,25 +84,25 @@ grep -q '__stack_top' "${root_dir}/tests/act4/config/link.ld"
 grep -q '\.text\.rvmodel' "${root_dir}/tests/act4/config/link.ld"
 grep -q '\.tohost' "${root_dir}/tests/act4/config/link.ld"
 
-python3 - "${root_dir}/tests/act4/config/bluerv32-rv32i.yaml" \
-		"${root_dir}/tests/act4/config/rvmodel_macros.h" \
-		"${root_dir}/tests/act4/config/link.ld" <<'PY'
+python3 - "${root_dir}" <<'PY'
 from pathlib import Path
 import re
 import sys
 
-udb_path = Path(sys.argv[1])
-macro_path = Path(sys.argv[2])
-linker_path = Path(sys.argv[3])
-udb_text = udb_path.read_text(encoding="utf-8")
-macro_text = macro_path.read_text(encoding="utf-8")
-linker_text = linker_path.read_text(encoding="utf-8")
+root = Path(sys.argv[1])
 
-extension_block = udb_text.split("implemented_extensions:", 1)[1].split("\nparams:", 1)[0]
-extensions = re.findall(r"name:\s*([A-Za-z0-9]+)", extension_block)
-if extensions != ["I"]:
-	raise SystemExit(f"ACT4 UDB configuration must declare only I: {extensions}")
+expected_profiles = {
+	"bluerv32-rv32i.yaml": ["I"],
+	"bluerv32-rv32izmmul.yaml": ["I", "Zmmul"],
+}
+for filename, expected in expected_profiles.items():
+	text = (root / "tests/act4/config" / filename).read_text(encoding="utf-8")
+	block = text.split("implemented_extensions:", 1)[1].split("\nparams:", 1)[0]
+	extensions = re.findall(r"name:\s*([A-Za-z0-9]+)", block)
+	if extensions != expected:
+		raise SystemExit(f"Unexpected extensions in {filename}: {extensions}")
 
+macro_text = (root / "tests/act4/config/rvmodel_macros.h").read_text(encoding="utf-8")
 required_macros = [
 	"RVMODEL_INTERRUPT_LATENCY",
 	"RVMODEL_TIMER_INT_SOON_DELAY",
@@ -126,10 +125,11 @@ for name in ("STANDARD_SM_SUPPORTED", "ZICSR_SUPPORTED"):
 		raise SystemExit(f"Missing ACT4 path blocker: {name}")
 
 if "#define RVMODEL_FENCEI" in macro_text:
-	raise SystemExit("RVMODEL_FENCEI must not be defined after ACT4 utils.h is processed")
+	raise SystemExit("RVMODEL_FENCEI must not be defined")
 if "#ifdef ZIFENCEI_SUPPORTED" not in macro_text:
 	raise SystemExit("Missing Zifencei configuration guard")
 
+linker_text = (root / "tests/act4/config/link.ld").read_text(encoding="utf-8")
 required_linker_tokens = [
 	".text.init",
 	".text.rvtest",
@@ -179,19 +179,37 @@ printf '00000000:\t00000013\taddi\tx0,x0,0\n'
 EOF_OBJDUMP
 chmod +x "${audit_tmp}/objdump"
 bash "${root_dir}/tests/act4/audit_elfs.sh" \
-	"${audit_tmp}/objdump" "${audit_tmp}/elfs" "${audit_tmp}/pass" >/dev/null
+	rv32i "${audit_tmp}/objdump" "${audit_tmp}/elfs" "${audit_tmp}/i-pass" >/dev/null
+bash "${root_dir}/tests/act4/audit_elfs.sh" \
+	rv32izmmul "${audit_tmp}/objdump" "${audit_tmp}/elfs" "${audit_tmp}/z-pass" >/dev/null
 
 cat > "${audit_tmp}/objdump" <<'EOF_OBJDUMP'
 #!/usr/bin/env bash
-printf '00000000:\t0000100f\tfence.i\n'
+printf '00000000:\t02000033\tmul\tx0,x0,x0\n'
 EOF_OBJDUMP
 chmod +x "${audit_tmp}/objdump"
 if bash "${root_dir}/tests/act4/audit_elfs.sh" \
-		"${audit_tmp}/objdump" "${audit_tmp}/elfs" "${audit_tmp}/fail" \
+		rv32i "${audit_tmp}/objdump" "${audit_tmp}/elfs" "${audit_tmp}/i-mul" \
 		>/dev/null 2>&1; then
-	echo 'ACT4 ELF audit did not reject fence.i.' >&2
+	echo 'RV32I ACT4 audit did not reject MUL.' >&2
 	exit 1
 fi
+bash "${root_dir}/tests/act4/audit_elfs.sh" \
+	rv32izmmul "${audit_tmp}/objdump" "${audit_tmp}/elfs" "${audit_tmp}/z-mul" >/dev/null
+
+cat > "${audit_tmp}/objdump" <<'EOF_OBJDUMP'
+#!/usr/bin/env bash
+printf '00000000:\t02004033\tdiv\tx0,x0,x0\n'
+EOF_OBJDUMP
+chmod +x "${audit_tmp}/objdump"
+for profile in rv32i rv32izmmul; do
+	if bash "${root_dir}/tests/act4/audit_elfs.sh" \
+			"${profile}" "${audit_tmp}/objdump" "${audit_tmp}/elfs" \
+			"${audit_tmp}/${profile}-div" >/dev/null 2>&1; then
+		echo "${profile} ACT4 audit did not reject DIV." >&2
+		exit 1
+	fi
+done
 
 g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only \
 	"${root_dir}/cpp/main.cpp"

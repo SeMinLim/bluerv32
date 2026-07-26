@@ -61,7 +61,7 @@ compiler_name="$(basename "${act4_cc}")"
 compiler_major="$("${act4_cc}" -dumpversion | cut -d. -f1)"
 if [[ "${compiler_name}" == *clang* ]]; then
 	compiler_family='Clang'
-	compiler_required=20
+	compiler_required=21
 else
 	compiler_family='GCC'
 	compiler_required=15

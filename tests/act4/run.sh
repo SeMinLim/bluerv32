@@ -21,10 +21,12 @@ case "${profile}" in
 	rv32i)
 		act4_config='bluerv32-rv32i'
 		act4_extensions='I'
+		act4_envelope='I,Sm,Zicsr'
 		;;
 	rv32izmmul)
 		act4_config='bluerv32-rv32izmmul'
 		act4_extensions='I,Zmmul'
+		act4_envelope='I,Sm,Zicsr,Zmmul'
 		;;
 	*)
 		echo "Unsupported PROFILE=${profile}" >&2
@@ -117,19 +119,17 @@ for file in "${extensions_file}" "${rvtest_config_file}"; do
 done
 
 actual_extensions="$(sed '/^[[:space:]]*$/d' "${extensions_file}" | sort -u | paste -sd, -)"
-expected_extensions="$(printf '%s\n' "${act4_extensions}" | tr ',' '\n' | sort -u | paste -sd, -)"
-if [[ "${actual_extensions}" != "${expected_extensions}" ]]; then
-	echo "ACT4 DUT configuration does not match ${profile}: ${actual_extensions}" >&2
+expected_envelope="$(printf '%s\n' "${act4_envelope}" | tr ',' '\n' | sort -u | paste -sd, -)"
+if [[ "${actual_extensions}" != "${expected_envelope}" ]]; then
+	echo "ACT4 UDB envelope does not match ${profile}: ${actual_extensions}" >&2
 	exit 2
 fi
 
-for macro in STANDARD_SM_SUPPORTED ZICSR_SUPPORTED ZIFENCEI_SUPPORTED; do
-	if grep -E -q "^#define[[:space:]]+${macro}([[:space:]]|$)" \
-			"${rvtest_config_file}"; then
-		echo "ACT4 generated a forbidden DUT macro: ${macro}" >&2
-		exit 2
-	fi
-done
+if grep -E -q '^#define[[:space:]]+ZIFENCEI_SUPPORTED([[:space:]]|$)' \
+		"${rvtest_config_file}"; then
+	echo 'ACT4 generated the forbidden Zifencei path.' >&2
+	exit 2
+fi
 
 if [[ ! -d "${elf_dir}" ]]; then
 	echo "ACT4 did not generate the expected ELF directory: ${elf_dir}" >&2

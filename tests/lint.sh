@@ -75,6 +75,7 @@ grep -q 'MARCH ?= $(PROFILE_MARCH)' "${root_dir}/software/Makefile"
 grep -q 'march=$(PROFILE_MARCH)' "${root_dir}/tests/Makefile"
 grep -q 'RV32I_Zmmul' "${root_dir}/tests/differential/run.sh"
 grep -q -- '--config-name' "${root_dir}/tests/act4/prepare_config.py"
+grep -q 'act4_envelope=' "${root_dir}/tests/act4/run.sh"
 grep -q 'EXTENSIONS="${act4_extensions}"' "${root_dir}/tests/act4/run.sh"
 grep -q 'rv32izmmul)' "${root_dir}/tests/act4/audit_elfs.sh"
 grep -q '__bss_start' "${root_dir}/tests/act4/config/link.ld"
@@ -92,15 +93,26 @@ import sys
 root = Path(sys.argv[1])
 
 expected_profiles = {
-	"bluerv32-rv32i.yaml": ["I"],
-	"bluerv32-rv32izmmul.yaml": ["I", "Zmmul"],
+	"bluerv32-rv32i.yaml": ["I", "Zicsr", "Sm"],
+	"bluerv32-rv32izmmul.yaml": ["I", "Zmmul", "Zicsr", "Sm"],
 }
 for filename, expected in expected_profiles.items():
 	text = (root / "tests/act4/config" / filename).read_text(encoding="utf-8")
 	block = text.split("implemented_extensions:", 1)[1].split("\nparams:", 1)[0]
 	extensions = re.findall(r"name:\s*([A-Za-z0-9]+)", block)
 	if extensions != expected:
-		raise SystemExit(f"Unexpected extensions in {filename}: {extensions}")
+		raise SystemExit(f"Unexpected ACT4 generation envelope in {filename}: {extensions}")
+
+prepare_text = (root / "tests/act4/prepare_config.py").read_text(encoding="utf-8")
+required_sail_settings = [
+	'extensions["M"]["supported"] = False',
+	'extensions["Zmmul"]["supported"] = zmmulSupported',
+	'extensions["Zicsr"]["supported"] = False',
+	'extensions["Zifencei"]["supported"] = False',
+]
+for setting in required_sail_settings:
+	if setting not in prepare_text:
+		raise SystemExit(f"Missing ACT4 Sail setting: {setting}")
 
 macro_text = (root / "tests/act4/config/rvmodel_macros.h").read_text(encoding="utf-8")
 required_macros = [

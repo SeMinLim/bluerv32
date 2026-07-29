@@ -5,12 +5,159 @@ kind: architecture configuration
 type: fully configured
 name: bluerv32-rv32izmmul
 description: |
-  ACT4 DUT configuration for the unprivileged blueRV32 RV32IZmmul core. The
-  core implements the I and Zmmul extensions and intentionally excludes the
-  division and remainder subset of M, as well as C, Zicsr, and Zifencei.
+  ACT4 generation envelope for the unprivileged blueRV32 RV32IZmmul core. Only
+  I- and Zmmul-extension tests are selected. Sm and Zicsr supply the XLEN and
+  framework configuration required by UDB; blueRV32 does not claim these
+  extensions, and rvmodel_macros.h removes their execution paths before test
+  assembly.
 implemented_extensions:
   - { name: I, version: "= 2.1" }
   - { name: Zmmul, version: "= 1.0.0" }
+  - { name: Zicsr, version: "= 2.0" }
+  - { name: Sm, version: "= 1.12.0" }
 
 params:
   MXLEN: 32
+  PHYS_ADDR_WIDTH: 32
+  MISA_CSR_IMPLEMENTED: true
+  M_MODE_ENDIANNESS: little
+
+  TRAP_ON_ECALL_FROM_M: true
+  TRAP_ON_EBREAK: true
+  TRAP_ON_UNIMPLEMENTED_INSTRUCTION: true
+  TRAP_ON_RESERVED_INSTRUCTION: true
+  TRAP_ON_UNIMPLEMENTED_CSR: true
+  TRAP_ON_ILLEGAL_WLRL: false
+
+  REPORT_VA_IN_MTVAL_ON_BREAKPOINT: true
+  REPORT_VA_IN_MTVAL_ON_LOAD_MISALIGNED: true
+  REPORT_VA_IN_MTVAL_ON_STORE_AMO_MISALIGNED: true
+  REPORT_VA_IN_MTVAL_ON_INSTRUCTION_MISALIGNED: true
+  REPORT_VA_IN_MTVAL_ON_LOAD_ACCESS_FAULT: true
+  REPORT_VA_IN_MTVAL_ON_STORE_AMO_ACCESS_FAULT: true
+  REPORT_VA_IN_MTVAL_ON_INSTRUCTION_ACCESS_FAULT: true
+  REPORT_ENCODING_IN_MTVAL_ON_ILLEGAL_INSTRUCTION: true
+  MTVAL_WIDTH: 32
+
+  MISALIGNED_LDST: false
+  MISALIGNED_LDST_EXCEPTION_PRIORITY: high
+
+  VENDOR_ID_BANK: 0
+  VENDOR_ID_OFFSET: 0
+
+  MTVEC_MODES: [0]
+  MTVEC_ACCESS: rw
+  MTVEC_ILLEGAL_WRITE_BEHAVIOR: retain
+  MTVEC_BASE_ALIGNMENT_DIRECT: 4
+
+  PRECISE_SYNCHRONOUS_EXCEPTIONS: true
+  MARCHID_IMPLEMENTED: false
+  MIMPID_IMPLEMENTED: false
+  PMA_GRANULARITY: 2
+  CONFIG_PTR_ADDRESS: 0
+
+  HPM_EVENTS: [0]
+  HPM_COUNTER_EN:
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+
+  MCOUNTINHIBIT_IMPLEMENTED: true
+  COUNTINHIBIT_EN:
+    - true
+    - true
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+
+  NUM_PMP_ENTRIES: 0
+
+  MCOUNTENABLE_EN:
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false
+    - false

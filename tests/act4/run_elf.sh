@@ -17,11 +17,11 @@ elf_name="$(basename "${elf}")"
 elf_hash="$(printf '%s' "${elf}" | sha256sum | cut -c1-16)"
 binary="${image_dir}/${elf_name%.elf}-${elf_hash}.bin"
 
-"${ACT4_OBJCOPY}" -O binary --gap-fill 0 --pad-to 0x10000 "${elf}" "${binary}"
+"${ACT4_OBJCOPY}" -O binary --gap-fill 0 --pad-to 0x100000 "${elf}" "${binary}"
 
 binary_size="$(wc -c < "${binary}")"
-if [[ "${binary_size}" -ne 65536 ]]; then
-	echo "ACT4 image must be exactly 65536 bytes: ${binary}" >&2
+if [[ "${binary_size}" -ne 1048576 ]]; then
+	echo "ACT4 image must be exactly 1048576 bytes: ${binary}" >&2
 	exit 2
 fi
 

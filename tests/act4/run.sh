@@ -101,7 +101,7 @@ python3 "${root_dir}/tests/act4/prepare_config.py" \
 	"${act4_sail}" --version
 } > "${build_dir}/versions.txt"
 
-make -C "${root_dir}" bsim PROFILE="${profile}" BSC_DEFINES='-D RV32_ACT4'
+make -C "${root_dir}" bsim-act4 PROFILE="${profile}"
 
 make -C "${act4_dir}" elfs \
 	CONFIG_FILES="${config_dir}/test_config.yaml" \
@@ -163,7 +163,7 @@ done
 bash "${root_dir}/tests/act4/audit_elfs.sh" \
 	"${profile}" "${act4_objdump}" "${elf_dir}" "${audit_dir}"
 
-export BLUERV32_BSIM="${root_dir}/build/${profile}/sim/bsim"
+export BLUERV32_BSIM="${build_dir}/sim/bsim"
 export BLUERV32_ACT4_IMAGE_DIR="${build_dir}/images"
 export ACT4_OBJCOPY="${act4_objcopy}"
 

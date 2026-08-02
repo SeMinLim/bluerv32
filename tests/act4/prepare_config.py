@@ -6,6 +6,9 @@ import shutil
 from pathlib import Path
 
 
+ACT4_MEMORY_BASE = "0x00000000"
+ACT4_MEMORY_SIZE = "0x00100000"
+
 SUPPORTED_CONFIGS = {
 	"bluerv32-rv32i": False,
 	"bluerv32-rv32izmmul": True,
@@ -79,8 +82,8 @@ def patchSailConfig(
 
 	mainRegion = mainRegions[0]
 	attributes = mainRegion["attributes"]
-	mainRegion["base"]["value"] = "0x00000000"
-	mainRegion["size"]["value"] = "0x00010000"
+	mainRegion["base"]["value"] = ACT4_MEMORY_BASE
+	mainRegion["size"]["value"] = ACT4_MEMORY_SIZE
 	attributes["executable"] = True
 	attributes["readable"] = True
 	attributes["writable"] = True
@@ -88,7 +91,7 @@ def patchSailConfig(
 		"Some": "AlignmentException"
 	}
 	memory["regions"] = [mainRegion]
-	memory["dtb_address"]["value"] = "0x00000000"
+	memory["dtb_address"]["value"] = ACT4_MEMORY_BASE
 
 	extensions = config["extensions"]
 	extensions["M"]["supported"] = False

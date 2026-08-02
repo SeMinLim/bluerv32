@@ -10,24 +10,21 @@ profile="$1"
 objdump="$2"
 elf_dir="$3"
 output_dir="$4"
-
-if [[ ! -d "${elf_dir}" ]]; then
-	echo "ACT4 ELF directory not found: ${elf_dir}" >&2
-	exit 2
-fi
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 case "${profile}" in
-	rv32i)
-		forbidden_regex='[[:space:]](fence\.i|csrrw|csrrs|csrrc|csrrwi|csrrsi|csrrci|mret|sret|uret|dret|mnret|wfi|sfence\.vma|hfence\.[a-z0-9_.]+|mul|mulh|mulhsu|mulhu|div|divu|rem|remu|c\.[a-z0-9_.]+)([[:space:]]|$)'
-		;;
-	rv32izmmul)
-		forbidden_regex='[[:space:]](fence\.i|csrrw|csrrs|csrrc|csrrwi|csrrsi|csrrci|mret|sret|uret|dret|mnret|wfi|sfence\.vma|hfence\.[a-z0-9_.]+|div|divu|rem|remu|c\.[a-z0-9_.]+)([[:space:]]|$)'
+	rv32i|rv32izmmul)
 		;;
 	*)
 		echo "Unsupported PROFILE=${profile}" >&2
 		exit 2
 		;;
 esac
+
+if [[ ! -d "${elf_dir}" ]]; then
+	echo "ACT4 ELF directory not found: ${elf_dir}" >&2
+	exit 2
+fi
 
 mkdir -p "${output_dir}"
 elf_count=0
@@ -37,11 +34,9 @@ while IFS= read -r -d '' elf; do
 	dump_name="$(printf '%s' "${relative_elf}" | sha256sum | cut -d' ' -f1).dump"
 	dump_path="${output_dir}/${dump_name}"
 
-	"${objdump}" -d -M no-aliases,numeric "${elf}" > "${dump_path}"
-
-	if grep -E -i -q "${forbidden_regex}" "${dump_path}"; then
-		echo "ACT4 generated an instruction outside ${profile}: ${relative_elf}" >&2
-		grep -E -i "${forbidden_regex}" "${dump_path}" >&2
+	if ! python3 "${script_dir}/audit_elf.py" \
+			"${profile}" "${objdump}" "${elf}" "${dump_path}"; then
+		echo "ACT4 ELF audit failed: ${relative_elf}" >&2
 		exit 1
 	fi
 

@@ -16,12 +16,16 @@ BSC_DEFINES ?=
 PROFILE_BUILD_DIR := $(ROOTDIR)/build/$(PROFILE)
 BUILD_DIR := $(PROFILE_BUILD_DIR)/hardware
 BSIM_DIR := $(PROFILE_BUILD_DIR)/sim
+ACT4_BUILD_DIR := $(PROFILE_BUILD_DIR)/act4
+ACT4_BSIM_DIR := $(ACT4_BUILD_DIR)/sim
 SOFTWARE_BIN := $(PROFILE_BUILD_DIR)/software/$(APP)/$(APP).bin
 SOFTWARE_OUTPUT := $(PROFILE_BUILD_DIR)/software/$(APP)/output.log
 SOFTWARE_SYSTEM_LOG := $(PROFILE_BUILD_DIR)/software/$(APP)/system.log
 TOP_SOURCE := $(ROOTDIR)/system/Top.bsv
+ACT4_TOP_SOURCE := $(ROOTDIR)/system/TopAct4.bsv
 TOP_MODULE := mkTop
 BSIM_TOP_MODULE := mkTop_bsim
+ACT4_BSIM_TOP_MODULE := mkTop_act4
 BSV_PATH := $(ROOTDIR)/processor:$(ROOTDIR)/system
 CONSTRAINTS := $(ROOTDIR)/ulx3s/ulx3s.lpf
 JSON_NETLIST := $(BUILD_DIR)/$(TOP_MODULE).json
@@ -61,9 +65,17 @@ BSCFLAGS_BSIM := \
 	-fdir $(BSIM_DIR) \
 	-D BSIM \
 	-l pthread
+BSCFLAGS_ACT4_BSIM := \
+	-bdir $(ACT4_BSIM_DIR) \
+	-vdir $(ACT4_BSIM_DIR) \
+	-simdir $(ACT4_BSIM_DIR) \
+	-info-dir $(ACT4_BSIM_DIR) \
+	-fdir $(ACT4_BSIM_DIR) \
+	-D BSIM \
+	-l pthread
 
 .PHONY: all help software list-software check-bsc check-fpga-tools \
-	verilog netlist pnr bitstream synth bsim runsim runsim-bin program \
+	verilog netlist pnr bitstream synth bsim bsim-act4 runsim runsim-bin program \
 	lint test test-directed test-random test-differential test-act4 \
 	test-arch clean clean-profile
 
@@ -146,6 +158,15 @@ bsim: check-bsc
 	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_BSIM) $(ALL_BSC_DEFINES) \
 		-sim -e $(BSIM_TOP_MODULE) -o $(BSIM_DIR)/bsim \
 		$(BSIM_DIR)/*.ba $(ROOTDIR)/cpp/main.cpp
+
+bsim-act4: check-bsc
+	rm -rf $(ACT4_BSIM_DIR)
+	mkdir -p $(ACT4_BSIM_DIR)
+	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_ACT4_BSIM) $(ALL_BSC_DEFINES) \
+		-p +:$(BSV_PATH) -sim -u -g $(ACT4_BSIM_TOP_MODULE) $(ACT4_TOP_SOURCE)
+	$(BSC) $(BSCFLAGS_COMMON) $(BSCFLAGS_ACT4_BSIM) $(ALL_BSC_DEFINES) \
+		-sim -e $(ACT4_BSIM_TOP_MODULE) -o $(ACT4_BSIM_DIR)/bsim \
+		$(ACT4_BSIM_DIR)/*.ba $(ROOTDIR)/cpp/act4_main.cpp
 
 runsim: software bsim
 	@bash -o pipefail -c 'cd "$(ROOTDIR)" && \

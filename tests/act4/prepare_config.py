@@ -76,9 +76,16 @@ def patchSailConfig(
 		region for region in regions
 		if region["attributes"]["mem_type"] == "MainMemory"
 	]
+	ioRegions = [
+		region for region in regions
+		if region["attributes"]["mem_type"] == "IOMemory" and
+		region["attributes"]["writable"]
+	]
 
 	if len(mainRegions) != 1:
 		raise RuntimeError("Expected exactly one MainMemory region in the ACT4 Sail config.")
+	if len(ioRegions) == 0:
+		raise RuntimeError("Expected an ACT4 Sail IO region for reference-model devices.")
 
 	mainRegion = mainRegions[0]
 	attributes = mainRegion["attributes"]
@@ -90,23 +97,13 @@ def patchSailConfig(
 	attributes["misaligned_exceptions"]["load_store"] = {
 		"Some": "AlignmentException"
 	}
-	memory["regions"] = [mainRegion]
-	memory["dtb_address"]["value"] = ACT4_MEMORY_BASE
+	memory["regions"] = [mainRegion] + ioRegions
 
 	extensions = config["extensions"]
 	extensions["M"]["supported"] = False
 	extensions["Zmmul"]["supported"] = zmmulSupported
 	extensions["Zicsr"]["supported"] = False
 	extensions["Zifencei"]["supported"] = False
-
-	platform = config.get("platform", {})
-	for peripheralName in ("clint", "simple_interrupt_generator"):
-		peripheral = platform.get(peripheralName)
-		if peripheral is not None:
-			peripheral["supported"] = False
-			peripheral["base"] = 0
-			if "size" in peripheral:
-				peripheral["size"] = 0
 
 	outputPath.write_text(
 		json.dumps(config, indent=2, sort_keys=True) + "\n",

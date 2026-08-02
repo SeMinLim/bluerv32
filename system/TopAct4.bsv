@@ -3,7 +3,7 @@ import FIFO::*;
 import Defines::*;
 import Processor::*;
 
-import "BDPI" function Bit#(32) bdpiAct4Read(Bit#(32) addr);
+import "BDPI" function ActionValue#(Bit#(32)) bdpiAct4Read(Bit#(32) addr);
 import "BDPI" function Action bdpiAct4Write(Bit#(32) addr, Bit#(32) data,
 	Bit#(2) size);
 import "BDPI" function Action bdpiAct4PutChar(Bit#(8) data);
@@ -33,14 +33,13 @@ module mkTop_act4(Empty);
 		let request <- processor.iMemReq;
 		Bool validRequest = !request.write && request.size == WordAccess &&
 			accessInAct4Memory(request.addr, WordAccess);
-		Word data = 0;
+		MemResp response = MemResp {data: 0, fault: !validRequest};
+
 		if ( validRequest ) begin
-			data = bdpiAct4Read(request.addr);
+			let data <- bdpiAct4Read(request.addr);
+			response.data = data;
 		end
-		instructionResponseQ.enq(MemResp {
-			data: data,
-			fault: !validRequest
-		});
+		instructionResponseQ.enq(response);
 	endrule
 
 	rule relayInstructionResponse;
@@ -64,7 +63,8 @@ module mkTop_act4(Empty);
 			if ( request.write ) begin
 				bdpiAct4Write(request.addr, request.data, pack(request.size));
 			end else begin
-				response.data = bdpiAct4Read(request.addr);
+				let data <- bdpiAct4Read(request.addr);
+				response.data = data;
 			end
 		end else if ( uartWrite ) begin
 			bdpiAct4PutChar(truncate(request.data));

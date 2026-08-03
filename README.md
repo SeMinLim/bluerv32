@@ -99,6 +99,8 @@ make program PROFILE=rv32izmmul BOARD=ulx3s
 
 ## Verification
 
+The blueRV32 RV32I and RV32IZmmul profiles have passed all applicable RISC-V Architectural Certification Tests (ACTs) using the official ACT4 framework. ACT4 is the current official framework for RISC-V architectural certification testing, replacing the deprecated RISCOF flow.
+
 ```sh
 make lint
 

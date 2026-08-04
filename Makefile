@@ -85,12 +85,16 @@ help:
 	@printf '%s\n' \
 		'make runsim PROFILE=rv32i APP=minisudoku' \
 		'make runsim PROFILE=rv32izmmul APP=minisudoku' \
+		'make runsim PROFILE=rv32im APP=minisudoku' \
+		'make synth PROFILE=rv32i BOARD=ulx3s' \
 		'make synth PROFILE=rv32izmmul BOARD=ulx3s' \
-		'make program PROFILE=rv32izmmul BOARD=ulx3s' \
+		'make synth PROFILE=rv32im BOARD=ulx3s' \
+		'make program PROFILE=rv32im BOARD=ulx3s' \
 		'make test-directed PROFILE=rv32i' \
 		'make test-directed PROFILE=rv32izmmul' \
-		'make test-differential PROFILE=rv32izmmul' \
-		'make test-act4 PROFILE=rv32izmmul ACT4_DIR=/path/to/riscv-arch-test' \
+		'make test-directed PROFILE=rv32im' \
+		'make test-differential PROFILE=rv32im' \
+		'make test-act4 PROFILE=rv32im ACT4_DIR=/path/to/riscv-arch-test' \
 		'make lint'
 
 software:

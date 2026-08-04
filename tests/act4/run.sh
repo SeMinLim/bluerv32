@@ -28,6 +28,11 @@ case "${profile}" in
 		act4_extensions='I,Zmmul'
 		act4_envelope='I,Sm,Zicsr,Zmmul'
 		;;
+	rv32im)
+		act4_config='bluerv32-rv32im'
+		act4_extensions='I,M'
+		act4_envelope='I,M,Sm,Zicsr'
+		;;
 	*)
 		echo "Unsupported PROFILE=${profile}" >&2
 		exit 2
@@ -150,6 +155,12 @@ for elf in "${act4_elfs[@]}"; do
 		*'/Zmmul/'*)
 			if [[ "${profile}" != 'rv32izmmul' ]]; then
 				echo "ACT4 generated a Zmmul test for ${profile}: ${relative_elf}" >&2
+				exit 2
+			fi
+			;;
+		*'/M/'*)
+			if [[ "${profile}" != 'rv32im' ]]; then
+				echo "ACT4 generated an M test for ${profile}: ${relative_elf}" >&2
 				exit 2
 			fi
 			;;

@@ -15,6 +15,9 @@ case "${profile}" in
 	rv32izmmul)
 		tests=(rv32i_basic rv32i_loadstore rv32izmmul)
 		;;
+	rv32im)
+		tests=(rv32i_basic rv32i_loadstore rv32izmmul rv32im)
+		;;
 	*)
 		echo "Unsupported PROFILE=${profile}" >&2
 		exit 2

@@ -10,8 +10,18 @@ ACT4_MEMORY_BASE = "0x00000000"
 ACT4_MEMORY_SIZE = "0x00100000"
 
 SUPPORTED_CONFIGS = {
-	"bluerv32-rv32i": False,
-	"bluerv32-rv32izmmul": True,
+	"bluerv32-rv32i": {
+		"mSupported": False,
+		"zmmulSupported": False,
+	},
+	"bluerv32-rv32izmmul": {
+		"mSupported": False,
+		"zmmulSupported": True,
+	},
+	"bluerv32-rv32im": {
+		"mSupported": True,
+		"zmmulSupported": False,
+	},
 }
 
 
@@ -66,6 +76,7 @@ def stripJsonComments(text: str) -> str:
 def patchSailConfig(
 	sourcePath: Path,
 	outputPath: Path,
+	mSupported: bool,
 	zmmulSupported: bool,
 ) -> None:
 	configText = sourcePath.read_text(encoding="utf-8")
@@ -100,7 +111,7 @@ def patchSailConfig(
 	memory["regions"] = [mainRegion] + ioRegions
 
 	extensions = config["extensions"]
-	extensions["M"]["supported"] = False
+	extensions["M"]["supported"] = mSupported
 	extensions["Zmmul"]["supported"] = zmmulSupported
 	extensions["Zicsr"]["supported"] = False
 	extensions["Zifencei"]["supported"] = False
@@ -164,10 +175,12 @@ def main() -> int:
 	for fileName in (udbName, "link.ld", "rvmodel_macros.h"):
 		shutil.copy2(args.source_dir / fileName, args.output_dir / fileName)
 
+	config = SUPPORTED_CONFIGS[args.config_name]
 	patchSailConfig(
 		sailSource,
 		args.output_dir / "sail.json",
-		SUPPORTED_CONFIGS[args.config_name],
+		config["mSupported"],
+		config["zmmulSupported"],
 	)
 	writeFrameworkConfig(
 		args.output_dir / "test_config.yaml",

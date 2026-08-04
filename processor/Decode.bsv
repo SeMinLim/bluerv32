@@ -6,6 +6,9 @@ typedef enum {
 `ifdef RV32_ZMMUL
 	Multiply,
 `endif
+`ifdef RV32_M
+	Divide,
+`endif
 	Branch,
 	LoadUpperImmediate,
 	AddUpperImmediatePc,
@@ -41,6 +44,15 @@ typedef enum {
 } MultiplyFunc deriving (Bits, Eq, FShow);
 `endif
 
+`ifdef RV32_M
+typedef enum {
+	DivideSigned,
+	DivideUnsigned,
+	RemainderSigned,
+	RemainderUnsigned
+} DivideFunc deriving (Bits, Eq, FShow);
+`endif
+
 typedef enum {
 	Equal,
 	NotEqual,
@@ -56,6 +68,9 @@ typedef struct {
 	BranchFunc branchFunc;
 `ifdef RV32_ZMMUL
 	MultiplyFunc multiplyFunc;
+`endif
+`ifdef RV32_M
+	DivideFunc divideFunc;
 `endif
 	Bool valid;
 	Bool writeDst;
@@ -86,6 +101,9 @@ function DecodedInst defaultDecodedInst();
 		branchFunc: Equal,
 `ifdef RV32_ZMMUL
 		multiplyFunc: MultiplyLow,
+`endif
+`ifdef RV32_M
+		divideFunc: DivideSigned,
 `endif
 		valid: False,
 		writeDst: False,
@@ -146,16 +164,51 @@ function DecodedInst decode(Bit#(32) instruction);
 `ifdef RV32_ZMMUL
 			end else if ( funct7 == 7'b0000001 ) begin
 				case ( funct3 )
-					3'b000: begin decoded.valid = True; decoded.multiplyFunc = MultiplyLow; end
-					3'b001: begin decoded.valid = True; decoded.multiplyFunc = MultiplyHighSigned; end
-					3'b010: begin decoded.valid = True; decoded.multiplyFunc = MultiplyHighSignedUnsigned; end
-					3'b011: begin decoded.valid = True; decoded.multiplyFunc = MultiplyHighUnsigned; end
+					3'b000: begin
+						decoded.valid = True;
+						decoded.instructionType = Multiply;
+						decoded.multiplyFunc = MultiplyLow;
+					end
+					3'b001: begin
+						decoded.valid = True;
+						decoded.instructionType = Multiply;
+						decoded.multiplyFunc = MultiplyHighSigned;
+					end
+					3'b010: begin
+						decoded.valid = True;
+						decoded.instructionType = Multiply;
+						decoded.multiplyFunc = MultiplyHighSignedUnsigned;
+					end
+					3'b011: begin
+						decoded.valid = True;
+						decoded.instructionType = Multiply;
+						decoded.multiplyFunc = MultiplyHighUnsigned;
+					end
+`ifdef RV32_M
+					3'b100: begin
+						decoded.valid = True;
+						decoded.instructionType = Divide;
+						decoded.divideFunc = DivideSigned;
+					end
+					3'b101: begin
+						decoded.valid = True;
+						decoded.instructionType = Divide;
+						decoded.divideFunc = DivideUnsigned;
+					end
+					3'b110: begin
+						decoded.valid = True;
+						decoded.instructionType = Divide;
+						decoded.divideFunc = RemainderSigned;
+					end
+					3'b111: begin
+						decoded.valid = True;
+						decoded.instructionType = Divide;
+						decoded.divideFunc = RemainderUnsigned;
+					end
+`else
 					default: begin end
+`endif
 				endcase
-
-				if ( decoded.valid ) begin
-					decoded.instructionType = Multiply;
-				end
 `endif
 			end
 

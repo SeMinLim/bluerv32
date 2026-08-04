@@ -21,17 +21,26 @@ FORBIDDEN_COMMON = {
 	"mnret",
 	"wfi",
 	"sfence.vma",
+}
+
+MULTIPLY_INSTRUCTIONS = {
+	"mul",
+	"mulh",
+	"mulhsu",
+	"mulhu",
+}
+
+DIVIDE_INSTRUCTIONS = {
 	"div",
 	"divu",
 	"rem",
 	"remu",
 }
 
-FORBIDDEN_RV32I = FORBIDDEN_COMMON | {
-	"mul",
-	"mulh",
-	"mulhsu",
-	"mulhu",
+FORBIDDEN_BY_PROFILE = {
+	"rv32i": FORBIDDEN_COMMON | MULTIPLY_INSTRUCTIONS | DIVIDE_INSTRUCTIONS,
+	"rv32izmmul": FORBIDDEN_COMMON | DIVIDE_INSTRUCTIONS,
+	"rv32im": FORBIDDEN_COMMON,
 }
 
 
@@ -82,9 +91,8 @@ def getMappingState(symbols: list[tuple[int, str]], address: int) -> str:
 
 def isForbidden(profile: str, mnemonic: str) -> bool:
 	mnemonic = mnemonic.lower()
-	forbidden = FORBIDDEN_RV32I if profile == "rv32i" else FORBIDDEN_COMMON
 	return (
-		mnemonic in forbidden
+		mnemonic in FORBIDDEN_BY_PROFILE[profile]
 		or mnemonic.startswith("hfence.")
 		or mnemonic.startswith("c.")
 	)
@@ -139,7 +147,10 @@ def main() -> int:
 	parser = argparse.ArgumentParser(
 		description="Audit executable ACT4 instructions using RISC-V mapping symbols."
 	)
-	parser.add_argument("profile", choices=("rv32i", "rv32izmmul"))
+	parser.add_argument(
+		"profile",
+		choices=("rv32i", "rv32izmmul", "rv32im"),
+	)
 	parser.add_argument("objdump")
 	parser.add_argument("elf", type=Path)
 	parser.add_argument("dump", type=Path)

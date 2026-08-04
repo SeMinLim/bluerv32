@@ -10,9 +10,9 @@ blueRV32 provides a clear multi-cycle processor, bare-metal software flow, Blues
 |---|---|---|
 | `rv32i` | RV32I | complete |
 | `rv32izmmul` | RV32I + Zmmul | complete |
-| `rv32im` | RV32I + M | planned |
+| `rv32im` | RV32I + M | implemented |
 
-The RV32I profile implements the complete 40-instruction base integer ISA. The RV32IZmmul profile adds `MUL`, `MULH`, `MULHSU`, and `MULHU` while keeping `DIV`, `DIVU`, `REM`, and `REMU` illegal. Both profiles intentionally exclude `C`, `Zicsr`, and `Zifencei`.
+The RV32I profile implements the complete 40-instruction base integer ISA. The RV32IZmmul profile adds `MUL`, `MULH`, `MULHSU`, and `MULHU` while keeping `DIV`, `DIVU`, `REM`, and `REMU` illegal. The RV32IM profile implements all eight RV32 M-extension multiplication, division, and remainder instructions. All profiles intentionally exclude `C`, `Zicsr`, and `Zifencei`.
 
 ## Repository hierarchy
 
@@ -21,6 +21,7 @@ profiles.mk                 Build-time core profile definitions
 processor/
 ├── Defines.bsv             Architectural and processor-state types
 ├── Decode.bsv              Strict instruction decoding
+├── Divider.bsv             Iterative RV32IM divider
 ├── Execute.bsv             RV32I ALU and control execution
 ├── Multiplier.bsv          Registered Zmmul multiplier
 ├── Processor.bsv           Multi-cycle processor control
@@ -68,13 +69,14 @@ sudo apt update
 sudo apt install gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
 ```
 
-The `riscv64-unknown-elf-` prefix can generate both profiles because blueRV32 supplies `-march=rv32i` or `-march=rv32i_zmmul` with `-mabi=ilp32`.
+The `riscv64-unknown-elf-` prefix can generate all profiles because blueRV32 supplies `-march=rv32i`, `-march=rv32i_zmmul`, or `-march=rv32im` with `-mabi=ilp32`.
 
 ## Build and simulate
 
 ```sh
 make runsim PROFILE=rv32i APP=minisudoku
 make runsim PROFILE=rv32izmmul APP=minisudoku
+make runsim PROFILE=rv32im APP=minisudoku
 ```
 
 Generated files are isolated by profile:
@@ -92,10 +94,11 @@ build/<profile>/software/<app>/system.log
 ```sh
 make synth PROFILE=rv32i BOARD=ulx3s
 make synth PROFILE=rv32izmmul BOARD=ulx3s
-make program PROFILE=rv32izmmul BOARD=ulx3s
+make synth PROFILE=rv32im BOARD=ulx3s
+make program PROFILE=rv32im BOARD=ulx3s
 ```
 
-`Multiplier.bsv` uses a generic full-product multiplication expression so Yosys may infer the target FPGA multiplier resources without embedding ECP5-specific primitives in the processor source.
+`Multiplier.bsv` uses a generic full-product multiplication expression so Yosys may infer the target FPGA multiplier resources without embedding ECP5-specific primitives in the processor source. `Divider.bsv` uses a 32-cycle radix-2 shift/subtract datapath and does not infer a combinational division operator.
 
 ## Verification
 
@@ -111,6 +114,10 @@ make test-differential PROFILE=rv32i
 make test-directed PROFILE=rv32izmmul
 make test-random PROFILE=rv32izmmul
 make test-differential PROFILE=rv32izmmul
+
+make test-directed PROFILE=rv32im
+make test-random PROFILE=rv32im
+make test-differential PROFILE=rv32im
 ```
 
 Spike differential testing is optional rather than an ACT4 prerequisite.
@@ -123,6 +130,8 @@ git clone https://github.com/riscv/riscv-arch-test.git
 make test-act4 PROFILE=rv32i \
 	ACT4_DIR=/path/to/riscv-arch-test
 make test-act4 PROFILE=rv32izmmul \
+	ACT4_DIR=/path/to/riscv-arch-test
+make test-act4 PROFILE=rv32im \
 	ACT4_DIR=/path/to/riscv-arch-test
 ```
 

@@ -7,6 +7,9 @@ import RFile::*;
 `ifdef RV32_ZMMUL
 import Multiplier::*;
 `endif
+`ifdef RV32_M
+import Divider::*;
+`endif
 
 typedef struct {
 	Word pc;
@@ -77,6 +80,9 @@ module mkProcessor(ProcessorIfc);
 	RFile2R1W registerFile <- mkRFile2R1W;
 `ifdef RV32_ZMMUL
 	MultiplierIfc multiplier <- mkMultiplier;
+`endif
+`ifdef RV32_M
+	DividerIfc divider <- mkDivider;
 `endif
 
 	Reg#(Word) instructionR <- mkReg(0);
@@ -179,6 +185,23 @@ module mkProcessor(ProcessorIfc);
 			};
 			state <= MultiplyResponse;
 `endif
+`ifdef RV32_M
+		end else if ( decodedR.instructionType == Divide ) begin
+			divider.request(DivideRequest {
+				divideFunc: decodedR.divideFunc,
+				dividend: src1R,
+				divisor: src2R
+			});
+			writebackR <= WritebackInfo {
+				pc: pc,
+				instruction: instructionR,
+				nextPc: executed.nextPc,
+				dst: decodedR.dst,
+				writeDst: decodedR.writeDst,
+				data: 0
+			};
+			state <= DivideResponse;
+`endif
 		end else if ( executed.controlTransfer && executed.nextPc[1:0] != 0 ) begin
 			trapQ.enq(makeTrap(pc, InstructionAddressMisaligned, executed.nextPc));
 			state <= Trapped;
@@ -227,10 +250,24 @@ module mkProcessor(ProcessorIfc);
 `ifdef RV32_ZMMUL
 	//------------------------------------------------------------------------------------
 	// [MULTIPLY]
-	// Receive the registered Zmmul result before architectural writeback
+	// Receive the registered multiplication result before architectural writeback
 	//------------------------------------------------------------------------------------
 	rule receiveMultiplyResponse ( state == MultiplyResponse );
 		Word data <- multiplier.response;
+		WritebackInfo info = writebackR;
+		info.data = data;
+		writebackR <= info;
+		state <= WritebackStage;
+	endrule
+`endif
+
+`ifdef RV32_M
+	//------------------------------------------------------------------------------------
+	// [DIVIDE]
+	// Receive the iterative division result before architectural writeback
+	//------------------------------------------------------------------------------------
+	rule receiveDivideResponse ( state == DivideResponse );
+		Word data <- divider.response;
 		WritebackInfo info = writebackR;
 		info.data = data;
 		writebackR <= info;

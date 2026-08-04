@@ -36,6 +36,11 @@ PROFILE_TESTS := \
 	rv32izmmul_rem_illegal \
 	rv32izmmul_remu_illegal \
 	rv32izmmul_diff
+else ifeq ($(PROFILE),rv32im)
+PROFILE_TESTS := \
+	rv32izmmul \
+	rv32im \
+	rv32im_diff
 endif
 
 TESTS := $(COMMON_TESTS) $(PROFILE_TESTS)

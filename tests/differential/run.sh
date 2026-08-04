@@ -16,6 +16,10 @@ case "${profile}" in
 		test_name='rv32izmmul_diff'
 		spike_isa='RV32I_Zmmul'
 		;;
+	rv32im)
+		test_name='rv32im_diff'
+		spike_isa='RV32IM'
+		;;
 	*)
 		echo "Unsupported PROFILE=${profile}" >&2
 		exit 2

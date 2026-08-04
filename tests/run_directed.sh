@@ -38,6 +38,12 @@ case "${profile}" in
 			'rv32izmmul_remu_illegal:2:trap'
 		)
 		;;
+	rv32im)
+		profile_cases=(
+			'rv32izmmul:3:pass'
+			'rv32im:3:pass'
+		)
+		;;
 	*)
 		echo "Unsupported PROFILE=${profile}" >&2
 		exit 2

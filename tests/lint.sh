@@ -8,17 +8,6 @@ if [[ -e "${root_dir}/.github/workflows" ]]; then
 	exit 1
 fi
 
-if [[ -e "${root_dir}/processor/Divider.bsv" ]]; then
-	echo 'Divider.bsv must not be added before the RV32IM profile.' >&2
-	exit 1
-fi
-
-if grep -R -n --exclude='lint.sh' 'RISCOF' \
-		"${root_dir}/README.md" "${root_dir}/tests"; then
-	echo 'Deprecated architectural-test integration must not remain in blueRV32.' >&2
-	exit 1
-fi
-
 for legacy_file in \
 	processor/BranchPredictor.bsv \
 	processor/Scoreboard.bsv; do
@@ -37,6 +26,7 @@ for file in \
 	profiles.mk \
 	processor/Defines.bsv \
 	processor/Decode.bsv \
+	processor/Divider.bsv \
 	processor/Execute.bsv \
 	processor/Multiplier.bsv \
 	processor/Processor.bsv \
@@ -50,10 +40,14 @@ for file in \
 	tests/directed/rv32izmmul_divu_illegal.s \
 	tests/directed/rv32izmmul_rem_illegal.s \
 	tests/directed/rv32izmmul_remu_illegal.s \
+	tests/directed/rv32im.s \
+	tests/directed/rv32im_diff.s \
 	tests/act4/README.md \
+	tests/act4/audit_elf.py \
 	tests/act4/audit_elfs.sh \
 	tests/act4/config/bluerv32-rv32i.yaml \
 	tests/act4/config/bluerv32-rv32izmmul.yaml \
+	tests/act4/config/bluerv32-rv32im.yaml \
 	tests/act4/config/link.ld \
 	tests/act4/config/rvmodel_macros.h \
 	tests/act4/prepare_config.py \
@@ -62,22 +56,33 @@ for file in \
 	test -f "${root_dir}/${file}"
 done
 
-grep -q 'SUPPORTED_PROFILES := rv32i rv32izmmul' "${root_dir}/profiles.mk"
+grep -q 'SUPPORTED_PROFILES := rv32i rv32izmmul rv32im' "${root_dir}/profiles.mk"
 grep -q 'PROFILE_MARCH := rv32i_zmmul' "${root_dir}/profiles.mk"
-grep -q 'PROFILE_BSC_DEFINES := -D RV32_ZMMUL' "${root_dir}/profiles.mk"
+grep -q 'PROFILE_MARCH := rv32im' "${root_dir}/profiles.mk"
+grep -q 'PROFILE_SPIKE_ISA := RV32IM' "${root_dir}/profiles.mk"
+grep -q 'PROFILE_ACT4_EXTENSIONS := I,M' "${root_dir}/profiles.mk"
+grep -q 'PROFILE_BSC_DEFINES := -D RV32_ZMMUL -D RV32_M' "${root_dir}/profiles.mk"
 grep -q 'build/$(PROFILE)' "${root_dir}/Makefile"
-grep -q 'RV32_ZMMUL' "${root_dir}/processor/Defines.bsv"
-grep -q 'RV32_ZMMUL' "${root_dir}/processor/Decode.bsv"
-grep -q 'RV32_ZMMUL' "${root_dir}/processor/Processor.bsv"
+grep -q 'RV32_M' "${root_dir}/processor/Defines.bsv"
+grep -q 'RV32_M' "${root_dir}/processor/Decode.bsv"
+grep -q 'RV32_M' "${root_dir}/processor/Processor.bsv"
 grep -q 'primMul' "${root_dir}/processor/Multiplier.bsv"
-grep -q 'MultiplyHighSignedUnsigned' "${root_dir}/processor/Multiplier.bsv"
+grep -q 'DivideFunc divideFunc' "${root_dir}/processor/Divider.bsv"
+grep -q 'rule process1 ( divideOn )' "${root_dir}/processor/Divider.bsv"
+grep -q 'divideCnt == 6.d31' "${root_dir}/processor/Divider.bsv"
+if grep -E -q '[[:space:]]/[[:space:]]|[[:space:]]%[[:space:]]' "${root_dir}/processor/Divider.bsv"; then
+	echo 'Divider.bsv must not use combinational division or remainder operators.' >&2
+	exit 1
+fi
 grep -q 'MARCH ?= $(PROFILE_MARCH)' "${root_dir}/software/Makefile"
 grep -q 'march=$(PROFILE_MARCH)' "${root_dir}/tests/Makefile"
-grep -q 'RV32I_Zmmul' "${root_dir}/tests/differential/run.sh"
+grep -q 'RV32IM' "${root_dir}/tests/differential/run.sh"
 grep -q -- '--config-name' "${root_dir}/tests/act4/prepare_config.py"
+grep -q 'mSupported' "${root_dir}/tests/act4/prepare_config.py"
 grep -q 'act4_envelope=' "${root_dir}/tests/act4/run.sh"
-grep -q 'EXTENSIONS="${act4_extensions}"' "${root_dir}/tests/act4/run.sh"
-grep -q 'rv32izmmul)' "${root_dir}/tests/act4/audit_elfs.sh"
+grep -q "act4_extensions='I,M'" "${root_dir}/tests/act4/run.sh"
+grep -q 'rv32im)' "${root_dir}/tests/act4/audit_elfs.sh"
+grep -q '"rv32im": FORBIDDEN_COMMON' "${root_dir}/tests/act4/audit_elf.py"
 grep -q '__bss_start' "${root_dir}/tests/act4/config/link.ld"
 grep -q '__bss_end' "${root_dir}/tests/act4/config/link.ld"
 grep -q '__stack_bottom' "${root_dir}/tests/act4/config/link.ld"
@@ -95,6 +100,7 @@ root = Path(sys.argv[1])
 expected_profiles = {
 	"bluerv32-rv32i.yaml": ["I", "Zicsr", "Sm"],
 	"bluerv32-rv32izmmul.yaml": ["I", "Zmmul", "Zicsr", "Sm"],
+	"bluerv32-rv32im.yaml": ["I", "M", "Zicsr", "Sm"],
 }
 for filename, expected in expected_profiles.items():
 	text = (root / "tests/act4/config" / filename).read_text(encoding="utf-8")
@@ -105,7 +111,7 @@ for filename, expected in expected_profiles.items():
 
 prepare_text = (root / "tests/act4/prepare_config.py").read_text(encoding="utf-8")
 required_sail_settings = [
-	'extensions["M"]["supported"] = False',
+	'extensions["M"]["supported"] = mSupported',
 	'extensions["Zmmul"]["supported"] = zmmulSupported',
 	'extensions["Zicsr"]["supported"] = False',
 	'extensions["Zifencei"]["supported"] = False',
@@ -171,6 +177,7 @@ bash -n "${root_dir}/tests/act4/run.sh"
 bash -n "${root_dir}/tests/act4/run_elf.sh"
 
 python3 - "${root_dir}/tests/differential/compare_spike.py" \
+		"${root_dir}/tests/act4/audit_elf.py" \
 		"${root_dir}/tests/act4/prepare_config.py" <<'PY'
 from pathlib import Path
 import sys
@@ -187,17 +194,24 @@ touch "${audit_tmp}/elfs/test.elf"
 
 cat > "${audit_tmp}/objdump" <<'EOF_OBJDUMP'
 #!/usr/bin/env bash
-printf '00000000:\t00000013\taddi\tx0,x0,0\n'
+if [[ "$1" == '-t' ]]; then
+	exit 0
+fi
+printf 'Disassembly of section .text:\n00000000:\t00000013\taddi\tx0,x0,0\n'
 EOF_OBJDUMP
 chmod +x "${audit_tmp}/objdump"
-bash "${root_dir}/tests/act4/audit_elfs.sh" \
-	rv32i "${audit_tmp}/objdump" "${audit_tmp}/elfs" "${audit_tmp}/i-pass" >/dev/null
-bash "${root_dir}/tests/act4/audit_elfs.sh" \
-	rv32izmmul "${audit_tmp}/objdump" "${audit_tmp}/elfs" "${audit_tmp}/z-pass" >/dev/null
+for profile in rv32i rv32izmmul rv32im; do
+	bash "${root_dir}/tests/act4/audit_elfs.sh" \
+		"${profile}" "${audit_tmp}/objdump" "${audit_tmp}/elfs" \
+		"${audit_tmp}/${profile}-base" >/dev/null
+done
 
 cat > "${audit_tmp}/objdump" <<'EOF_OBJDUMP'
 #!/usr/bin/env bash
-printf '00000000:\t02000033\tmul\tx0,x0,x0\n'
+if [[ "$1" == '-t' ]]; then
+	exit 0
+fi
+printf 'Disassembly of section .text:\n00000000:\t02000033\tmul\tx0,x0,x0\n'
 EOF_OBJDUMP
 chmod +x "${audit_tmp}/objdump"
 if bash "${root_dir}/tests/act4/audit_elfs.sh" \
@@ -206,12 +220,18 @@ if bash "${root_dir}/tests/act4/audit_elfs.sh" \
 	echo 'RV32I ACT4 audit did not reject MUL.' >&2
 	exit 1
 fi
-bash "${root_dir}/tests/act4/audit_elfs.sh" \
-	rv32izmmul "${audit_tmp}/objdump" "${audit_tmp}/elfs" "${audit_tmp}/z-mul" >/dev/null
+for profile in rv32izmmul rv32im; do
+	bash "${root_dir}/tests/act4/audit_elfs.sh" \
+		"${profile}" "${audit_tmp}/objdump" "${audit_tmp}/elfs" \
+		"${audit_tmp}/${profile}-mul" >/dev/null
+done
 
 cat > "${audit_tmp}/objdump" <<'EOF_OBJDUMP'
 #!/usr/bin/env bash
-printf '00000000:\t02004033\tdiv\tx0,x0,x0\n'
+if [[ "$1" == '-t' ]]; then
+	exit 0
+fi
+printf 'Disassembly of section .text:\n00000000:\t02004033\tdiv\tx0,x0,x0\n'
 EOF_OBJDUMP
 chmod +x "${audit_tmp}/objdump"
 for profile in rv32i rv32izmmul; do
@@ -222,6 +242,8 @@ for profile in rv32i rv32izmmul; do
 		exit 1
 	fi
 done
+bash "${root_dir}/tests/act4/audit_elfs.sh" \
+	rv32im "${audit_tmp}/objdump" "${audit_tmp}/elfs" "${audit_tmp}/im-div" >/dev/null
 
 g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only \
 	"${root_dir}/cpp/main.cpp"

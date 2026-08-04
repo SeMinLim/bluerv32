@@ -13,7 +13,7 @@ output_dir="$4"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 case "${profile}" in
-	rv32i|rv32izmmul)
+	rv32i|rv32izmmul|rv32im)
 		;;
 	*)
 		echo "Unsupported PROFILE=${profile}" >&2

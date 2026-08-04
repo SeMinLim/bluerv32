@@ -15,6 +15,9 @@ typedef enum {
 `ifdef RV32_ZMMUL
 	MultiplyResponse,
 `endif
+`ifdef RV32_M
+	DivideResponse,
+`endif
 	DataResponse,
 	WritebackStage,
 	Trapped

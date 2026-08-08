@@ -4,6 +4,7 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 test_dir="${root_dir}/tests"
 profile="${PROFILE:-rv32i}"
+test_timeout="${TEST_TIMEOUT:-60}"
 
 make -C "${root_dir}" bsim PROFILE="${profile}" BSC_DEFINES='-D RV32_TRACE'
 
@@ -54,13 +55,18 @@ cases=("${common_cases[@]}" "${profile_cases[@]}")
 
 for entry in "${cases[@]}"; do
 	IFS=':' read -r test_name expected_cause result_type <<<"${entry}"
+	printf '[TEST] %s (%s)\n' "${test_name}" "${profile}"
 	make -C "${test_dir}" ROOTDIR="${root_dir}" PROFILE="${profile}" \
 		build TEST="${test_name}"
 
 	binary="${root_dir}/build/${profile}/tests/${test_name}/${test_name}.bin"
 	log="${root_dir}/build/${profile}/tests/${test_name}/${test_name}.log"
-	BLUERV32_BIN="${binary}" \
-		"${root_dir}/build/${profile}/sim/bsim" >"${log}" 2>&1
+	if ! BLUERV32_BIN="${binary}" timeout "${test_timeout}" \
+			"${root_dir}/build/${profile}/sim/bsim" >"${log}" 2>&1; then
+		echo "${test_name} (${profile}) did not complete within ${test_timeout} seconds." >&2
+		tail -n 100 "${log}" >&2 || true
+		exit 1
+	fi
 
 	grep -q "RV32_TRAP .*cause=${expected_cause}" "${log}"
 	if [[ "${result_type}" == 'pass' ]]; then

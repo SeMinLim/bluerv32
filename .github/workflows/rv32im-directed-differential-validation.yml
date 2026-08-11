@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - .github/workflows/rv32im-directed-differential-validation.yml
-      - tests/.rv32im-validation-trigger
 
 permissions:
   contents: write
@@ -14,7 +13,7 @@ permissions:
 jobs:
   rv32im-validation:
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 60
 
     steps:
       - name: Check out blueRV32
@@ -26,14 +25,14 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          cat > tests/.rv32im-validation-run <<EOF
+          cat > tests/.rv32im-validation-run-v2 <<EOF
           run_id=${GITHUB_RUN_ID}
           run_attempt=${GITHUB_RUN_ATTEMPT}
           source_sha=${GITHUB_SHA}
           started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           EOF
-          git add tests/.rv32im-validation-run
-          git commit -m 'Record temporary RV32IM validation run [skip actions]'
+          git add tests/.rv32im-validation-run-v2
+          git commit -m 'Record bounded RV32IM validation run [skip actions]'
           git push origin HEAD:main
 
       - name: Install system dependencies
@@ -73,7 +72,7 @@ jobs:
           mkdir -p /tmp/riscv-isa-sim/build "$HOME/riscv"
           cd /tmp/riscv-isa-sim/build
           ../configure --prefix="$HOME/riscv"
-          make -j2
+          make -j"$(nproc)"
           make install
           echo "$HOME/riscv/bin" >> "$GITHUB_PATH"
 
@@ -115,7 +114,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bluerv32-rv32im-directed-differential-results
+          name: bluerv32-rv32im-directed-differential-results-v2
           path: |
             /tmp/rv32im-directed.log
             /tmp/rv32im-directed.status
@@ -142,16 +141,16 @@ jobs:
             tail -n 300 /tmp/rv32im-directed.log 2>/dev/null || true
             printf '%s\n' '--- DIFFERENTIAL LOG TAIL ---'
             tail -n 300 /tmp/rv32im-differential.log 2>/dev/null || true
-          } > /tmp/rv32im-validation-result
+          } > /tmp/rv32im-validation-result-v2
 
           git reset --hard "$GITHUB_SHA"
           git clean -fdx
           git pull --rebase origin main
-          cp /tmp/rv32im-validation-result tests/.rv32im-validation-result
+          cp /tmp/rv32im-validation-result-v2 tests/.rv32im-validation-result-v2
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tests/.rv32im-validation-result
-          git commit -m 'Record temporary RV32IM validation result [skip actions]'
+          git add tests/.rv32im-validation-result-v2
+          git commit -m 'Record bounded RV32IM validation result [skip actions]'
           git push origin HEAD:main
 
       - name: Return validation status

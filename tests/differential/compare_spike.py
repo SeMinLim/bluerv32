@@ -21,24 +21,25 @@ def readCoreTrace(path):
 	return trace
 
 
-def readSpikeTrace(path):
+def readSpikeTrace(path, pcOffset):
 	trace = []
 	for line in Path(path).read_text(errors="replace").splitlines():
 		match = SPIKE_PATTERN.search(line)
 		if match is not None:
-			pc = int(match.group(1), 16) & 0xffffffff
+			pc = (int(match.group(1), 16) - pcOffset) & 0xffffffff
 			instruction = int(match.group(2), 16)
 			trace.append((pc, instruction))
 	return trace
 
 
 def main():
-	if len(sys.argv) != 3:
-		print( "Usage: compare_spike.py CORE_LOG SPIKE_LOG" )
+	if len(sys.argv) not in (3, 4):
+		print( "Usage: compare_spike.py CORE_LOG SPIKE_LOG [SPIKE_PC_OFFSET]" )
 		return 2
 
+	pcOffset = int(sys.argv[3], 0) if len(sys.argv) == 4 else 0
 	coreTrace = readCoreTrace(sys.argv[1])
-	spikeTrace = readSpikeTrace(sys.argv[2])
+	spikeTrace = readSpikeTrace(sys.argv[2], pcOffset)
 	if len(coreTrace) == 0:
 		print( "No blueRV32 commit trace was found." )
 		return 1

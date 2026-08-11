@@ -101,7 +101,7 @@ module mkProcessor(ProcessorIfc);
 	Reg#(Bit#(64)) cycleCnt <- mkReg(0);
 	Reg#(Bit#(64)) instructionCnt <- mkReg(0);
 
-	rule countCycle ( state != Trapped );
+	rule countCycle ( state != Trapped && state != WritebackStage );
 		cycleCnt <= cycleCnt + 1;
 	endrule
 
@@ -330,18 +330,20 @@ module mkProcessor(ProcessorIfc);
 	//------------------------------------------------------------------------------------
 	rule writebackInstruction ( state == WritebackStage );
 		WritebackInfo info = writebackR;
+		Bit#(64) nextCycleCnt = cycleCnt + 1;
 
 		if ( info.writeDst ) begin
 			registerFile.wr(info.dst, info.data);
 		end
 		pc <= info.nextPc;
+		cycleCnt <= nextCycleCnt;
 		instructionCnt <= instructionCnt + 1;
 		state <= FetchRequest;
 
 `ifdef RV32_TRACE
 		$display("RV32_COMMIT pc=%08x inst=%08x rd=%0d data=%08x write=%0d cycle=%0d instret=%0d",
 			info.pc, info.instruction, info.dst, info.data,
-			info.writeDst, cycleCnt, instructionCnt + 1);
+			info.writeDst, nextCycleCnt, instructionCnt + 1);
 `endif
 	endrule
 

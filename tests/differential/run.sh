@@ -47,7 +47,7 @@ if [[ "${core_instruction_count}" -eq 0 ]]; then
 fi
 spike_instruction_limit=$((core_instruction_count + 1))
 
-timeout "${spike_timeout}" spike --isa="${spike_isa}" --pc=0 \
+timeout "${spike_timeout}" spike --isa="${spike_isa}" --pcs=0:0 \
 	-m0x0:0x10000 -l --instructions="${spike_instruction_limit}" "${elf}" \
 	>/dev/null 2>"${spike_log}" || true
 

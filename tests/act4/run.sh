@@ -31,7 +31,7 @@ case "${profile}" in
 	rv32im)
 		act4_config='bluerv32-rv32im'
 		act4_extensions='I,M'
-		act4_envelope='I,M,Sm,Zicsr,Zmmul'
+		act4_envelope='I,M,Sm,Zicsr'
 		;;
 	*)
 		echo "Unsupported PROFILE=${profile}" >&2

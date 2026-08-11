@@ -38,7 +38,16 @@ spike_log="${build_dir}/spike.log"
 
 BLUERV32_BIN="${binary}" \
 	"${root_dir}/build/${profile}/sim/bsim" >"${core_log}" 2>&1
-spike --isa="${spike_isa}" --pc=0 -m0x0:0x10000 -l "${elf}" \
+
+core_instruction_count="$(grep -c 'RV32_COMMIT ' "${core_log}" || true)"
+if [[ "${core_instruction_count}" -eq 0 ]]; then
+	echo 'No blueRV32 commit trace was produced.' >&2
+	exit 1
+fi
+spike_instruction_limit=$((core_instruction_count + 1))
+
+spike --isa="${spike_isa}" --pc=0 -m0x0:0x10000 -l \
+	--instructions="${spike_instruction_limit}" "${elf}" \
 	>/dev/null 2>"${spike_log}" || true
 
 python3 "${test_dir}/differential/compare_spike.py" \

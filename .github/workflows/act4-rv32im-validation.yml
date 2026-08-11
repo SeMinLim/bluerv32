@@ -80,11 +80,11 @@ jobs:
             https://github.com/riscv/riscv-arch-test.git \
             /tmp/riscv-arch-test
 
-      - name: Install Sail RISC-V 0.13
+      - name: Install Sail RISC-V 0.13.1
         run: |
           mkdir -p "$HOME/riscv"
           curl -fsSL \
-            https://github.com/riscv/sail-riscv/releases/download/0.13/sail-riscv-Linux-x86_64.tar.gz \
+            https://github.com/riscv/sail-riscv/releases/download/0.13.1/sail-riscv-Linux-x86_64.tar.gz \
             | tar xz --directory="$HOME/riscv" --strip-components=1
           echo "$HOME/riscv/bin" >> "$GITHUB_PATH"
 

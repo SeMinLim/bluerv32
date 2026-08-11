@@ -17,6 +17,7 @@ implemented_extensions:
   - { name: Sm, version: "= 1.12.0" }
 
 params:
+  MUTABLE_MISA_M: false
   MXLEN: 32
   PHYS_ADDR_WIDTH: 32
   MISA_CSR_IMPLEMENTED: true

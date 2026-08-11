@@ -1,4 +1,4 @@
-name: Temporary RV32IM Final Validation V5
+name: Temporary RV32IM Differential Validation V6
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  rv32im-validation:
+  rv32im-differential:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 
@@ -25,13 +25,13 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          cat > tests/.rv32im-validation-run-v5 <<EOF
+          cat > tests/.rv32im-validation-run-v6 <<EOF
           run_id=${GITHUB_RUN_ID}
           source_sha=${GITHUB_SHA}
           started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           EOF
-          git add tests/.rv32im-validation-run-v5
-          git commit -m 'Record RV32IM validation V5 [skip actions]'
+          git add tests/.rv32im-validation-run-v6
+          git commit -m 'Record RV32IM differential V6 [skip actions]'
           git push origin HEAD:main
 
       - name: Install dependencies
@@ -70,78 +70,57 @@ jobs:
         run: |
           bsc -v
           riscv64-unknown-elf-gcc --version | head -n 1
+          riscv64-unknown-elf-objcopy --version | head -n 1
           spike --help >/dev/null
           rm -rf .github/workflows
           make lint
 
-      - name: Run RV32IM directed tests
-        run: |
-          set +e
-          set -o pipefail
-          timeout 600 make test-directed PROFILE=rv32im \
-            2>&1 | tee /tmp/rv32im-directed-v5.log
-          status=${PIPESTATUS[0]}
-          set -e
-          printf '%s\n' "$status" > /tmp/rv32im-directed-v5.status
-
-      - name: Run RV32IM Spike differential test
-        if: always()
+      - name: Run relocated RV32IM Spike differential test
         run: |
           set +e
           set -o pipefail
           timeout 300 make test-differential PROFILE=rv32im \
-            2>&1 | tee /tmp/rv32im-differential-v5.log
+            2>&1 | tee /tmp/rv32im-differential-v6.log
           status=${PIPESTATUS[0]}
           set -e
-          printf '%s\n' "$status" > /tmp/rv32im-differential-v5.status
+          printf '%s\n' "$status" > /tmp/rv32im-differential-v6.status
 
-      - name: Upload validation results
+      - name: Upload validation result
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bluerv32-rv32im-validation-v5
+          name: bluerv32-rv32im-differential-v6
           path: |
-            /tmp/rv32im-directed-v5.log
-            /tmp/rv32im-directed-v5.status
-            /tmp/rv32im-differential-v5.log
-            /tmp/rv32im-differential-v5.status
-            build/rv32im/tests
+            /tmp/rv32im-differential-v6.log
+            /tmp/rv32im-differential-v6.status
+            build/rv32im/tests/rv32im_diff
           if-no-files-found: warn
           retention-days: 7
 
       - name: Publish validation result
         if: always()
         run: |
-          directed_status=$(cat /tmp/rv32im-directed-v5.status 2>/dev/null || printf '255')
-          differential_status=$(cat /tmp/rv32im-differential-v5.status 2>/dev/null || printf '255')
+          status=$(cat /tmp/rv32im-differential-v6.status 2>/dev/null || printf '255')
           {
             printf 'run_id=%s\n' "$GITHUB_RUN_ID"
             printf 'source_sha=%s\n' "$GITHUB_SHA"
             printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            printf 'directed_exit_status=%s\n' "$directed_status"
-            printf 'differential_exit_status=%s\n' "$differential_status"
+            printf 'differential_exit_status=%s\n' "$status"
             printf 'spike_commit=%s\n' "$(git -C /tmp/riscv-isa-sim rev-parse HEAD 2>/dev/null || printf unknown)"
-            printf '%s\n' '--- DIRECTED LOG ---'
-            cat /tmp/rv32im-directed-v5.log 2>/dev/null || true
             printf '%s\n' '--- DIFFERENTIAL LOG ---'
-            cat /tmp/rv32im-differential-v5.log 2>/dev/null || true
-          } > /tmp/rv32im-validation-result-v5
+            cat /tmp/rv32im-differential-v6.log 2>/dev/null || true
+          } > /tmp/rv32im-validation-result-v6
 
           git reset --hard "$GITHUB_SHA"
           git clean -fdx
           git pull --rebase origin main
-          cp /tmp/rv32im-validation-result-v5 tests/.rv32im-validation-result-v5
+          cp /tmp/rv32im-validation-result-v6 tests/.rv32im-validation-result-v6
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add tests/.rv32im-validation-result-v5
-          git commit -m 'Record RV32IM validation V5 result [skip actions]'
+          git add tests/.rv32im-validation-result-v6
+          git commit -m 'Record RV32IM differential V6 result [skip actions]'
           git push origin HEAD:main
 
       - name: Return validation status
         if: always()
-        run: |
-          directed_status=$(cat /tmp/rv32im-directed-v5.status 2>/dev/null || printf '255')
-          differential_status=$(cat /tmp/rv32im-differential-v5.status 2>/dev/null || printf '255')
-          if [[ "$directed_status" -ne 0 || "$differential_status" -ne 0 ]]; then
-            exit 1
-          fi
+        run: exit "$(cat /tmp/rv32im-differential-v6.status 2>/dev/null || printf '255')"

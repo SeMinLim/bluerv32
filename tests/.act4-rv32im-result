@@ -1,7 +1,7 @@
-run_id=31481761249
+run_id=31481973203
 run_attempt=1
-source_sha=982c2056dcafcee62e0e13174825d61638e92e94
-completed_at=2026-08-11T10:21:21Z
+source_sha=947f42d0b8f5b338e5ff7ce5addd401a6e12c2b1
+completed_at=2026-08-11T10:25:15Z
 exit_status=2
 test_count=0
 --- ACT4 LOG TAIL ---
@@ -48,8 +48,8 @@ Downloading cpython-3.14.7-linux-x86_64-gnu (download) (34.3MiB)
 Using CPython 3.14.7
 Creating virtual environment at: .venv
    Building act @ file:///tmp/riscv-arch-test/framework
-   Building testgen @ file:///tmp/riscv-arch-test/generators/testgen
    Building covergroupgen @ file:///tmp/riscv-arch-test/generators/coverage
+   Building testgen @ file:///tmp/riscv-arch-test/generators/testgen
       Built covergroupgen @ file:///tmp/riscv-arch-test/generators/coverage
       Built testgen @ file:///tmp/riscv-arch-test/generators/testgen
       Built act @ file:///tmp/riscv-arch-test/framework
@@ -61,69 +61,184 @@ Downloading ruff (10.9MiB)
  Downloaded ruff
  Downloaded pygments
  Downloaded pyright
-Installed 20 packages in 119ms
+Installed 20 packages in 60ms
 
 ✓ Generated covergroups for 2 extension(s)
 
 ✓ Generated 8 test suite(s)
-[31m╭─[0m[31m────────────────────[0m[31m [0m[1;31mTraceback [0m[1;2;31m(most recent call last)[0m[31m [0m[31m─────────────────────[0m[31m─╮[0m
-[31m│[0m [2m/tmp/riscv-arch-test/framework/src/act/[0m[1mact.py[0m:112 in run_act                 [31m│[0m
-[31m│[0m                                                                              [31m│[0m
-[31m│[0m   [2m109 [0m[2m│   [0m[2m# Load all configs and prepare every DUT's generated files[0m         [31m│[0m
-[31m│[0m   [2m110 [0m[2m│   [0m[2m# (extensions.txt, rvtest_config.{h,svh}, and rvmodel_macros.svh) [0m [31m│[0m
-[31m│[0m       [2min[0m                                                                     [31m│[0m
-[31m│[0m   [2m111 [0m[2m│   [0m[2m# one parallel UDB pass, then select tests per config.[0m             [31m│[0m
-[31m│[0m [31m❱ [0m112 [2m│   [0m[94mfor[0m config, config_params, selected_tests [95min[0m                       [31m│[0m
-[31m│[0m       [1;4mprepare_configs_and_select_tests([0m                                      [31m│[0m
-[31m│[0m   [2m113 [0m[2m│   │   [0m[1;4mconfig_files, full_test_dict, workdir, jobs=jobs, [0m             [31m│[0m
-[31m│[0m       [1;4mverbose=verbose[0m                                                        [31m│[0m
-[31m│[0m   [2m114 [0m[2m│   [0m[1;4m)[0m:                                                                 [31m│[0m
-[31m│[0m   [2m115 [0m[2m│   │   [0mmxlen = config_params[[33m"[0m[33mMXLEN[0m[33m"[0m]                                 [31m│[0m
-[31m│[0m                                                                              [31m│[0m
-[31m│[0m [2m/tmp/riscv-arch-test/framework/src/act/[0m[1mselect_tests.py[0m:116 in                [31m│[0m
-[31m│[0m prepare_configs_and_select_tests                                             [31m│[0m
-[31m│[0m                                                                              [31m│[0m
-[31m│[0m   [2m113 [0m[2;33m│   │   │   [0m[33mwhen true. Set false for callers that only need test [0m      [31m│[0m
-[31m│[0m       [33mselection and[0m                                                          [31m│[0m
-[31m│[0m   [2m114 [0m[2;33m│   │   │   [0m[33mmay run before those tools are installed.[0m                  [31m│[0m
-[31m│[0m   [2m115 [0m[2;33m│   [0m[33m"""[0m                                                                [31m│[0m
-[31m│[0m [31m❱ [0m116 [2m│   [0mconfigs = [1;4m[load_config(config_file, validate_tools=validate_tools)[0m [31m│[0m
-[31m│[0m       [1;4;94mfor[0m[1;4m config_file [0m[1;4;95min[0m[1;4m config_files][0m                                       [31m│[0m
-[31m│[0m   [2m117 [0m[2m│   [0mprepare_dut_outputs(configs, workdir, jobs, verbose)               [31m│[0m
-[31m│[0m   [2m118 [0m[2m│   [0m                                                                   [31m│[0m
-[31m│[0m   [2m119 [0m[2m│   [0mresults: [96mlist[0m[[96mtuple[0m[Config, [96mdict[0m[[96mstr[0m, ConfigParamValue], [96mdict[0m[[96mstr[0m, [31m│[0m
-[31m│[0m       TestMetadata]]] = []                                                   [31m│[0m
-[31m│[0m                                                                              [31m│[0m
-[31m│[0m [2m/tmp/riscv-arch-test/framework/src/act/[0m[1mconfig.py[0m:280 in load_config          [31m│[0m
-[31m│[0m                                                                              [31m│[0m
-[31m│[0m   [2m277 [0m[2m│   │   [0myaml_data, context={[33m"[0m[33mconfig_file_dir[0m[33m"[0m: config_file.parent,     [31m│[0m
-[31m│[0m       [33m"[0m[33mvalidate_tools[0m[33m"[0m: validate_tools}                                      [31m│[0m
-[31m│[0m   [2m278 [0m[2m│   [0m)                                                                  [31m│[0m
-[31m│[0m   [2m279 [0m[2m│   [0m[94mif[0m validate_tools:                                                 [31m│[0m
-[31m│[0m [31m❱ [0m280 [2m│   │   [0m[1;4mcheck_ref_model_version(config)[0m                                [31m│[0m
-[31m│[0m   [2m281 [0m[2m│   │   [0mcheck_compiler_version(config)                                 [31m│[0m
-[31m│[0m   [2m282 [0m[2m│   [0m[94mreturn[0m config                                                      [31m│[0m
-[31m│[0m   [2m283 [0m                                                                       [31m│[0m
-[31m│[0m                                                                              [31m│[0m
-[31m│[0m [2m/tmp/riscv-arch-test/framework/src/act/[0m[1mconfig.py[0m:194 in                      [31m│[0m
-[31m│[0m check_ref_model_version                                                      [31m│[0m
-[31m│[0m                                                                              [31m│[0m
-[31m│[0m   [2m191 [0m[2m│   │   │   [0m)                                                          [31m│[0m
-[31m│[0m   [2m192 [0m[2m│   │   │   [0mversion = result.stdout.strip()                            [31m│[0m
-[31m│[0m   [2m193 [0m[2m│   │   │   [0m[94mif[0m version != REQUIRED_SAIL_VERSION:                       [31m│[0m
-[31m│[0m [31m❱ [0m194 [2m│   │   │   │   [0m[94mraise[0m [96mValueError[0m(                                      [31m│[0m
-[31m│[0m   [2m195 [0m[2m│   │   │   │   │   [0m[33mf[0m[33m"[0m[33mSail reference model version mismatch. ACT4 [0m     [31m│[0m
-[31m│[0m       [33mrequires version [0m[33m{[0mREQUIRED_SAIL_VERSION[33m}[0m[33m, but [0m[33m{[0mversion[33m}[0m[33m was found. [0m[33m"[0m   [31m│[0m
-[31m│[0m   [2m196 [0m[2m│   │   │   │   │   [0m[33m"[0m[33mRefer to the ACT4 README for installation [0m        [31m│[0m
-[31m│[0m       [33minstructions: [0m                                                         [31m│[0m
-[31m│[0m       [33mhttps://github.com/riscv/riscv-arch-test/tree/act4?tab=readme-ov-file#[0m [31m│[0m
-[31m│[0m       [33m4-risc-v-sail-reference-model[0m[33m"[0m,                                        [31m│[0m
-[31m│[0m   [2m197 [0m[2m│   │   │   │   [0m)                                                      [31m│[0m
-[31m╰──────────────────────────────────────────────────────────────────────────────╯[0m
-[1;91mValueError: [0mSail reference model version mismatch. ACT4 requires version [1;36m0.13[0m.[1;36m1[0m,
-but [1;36m0.13[0m was found. Refer to the ACT4 README for installation instructions: 
-[4;94mhttps://github.com/riscv/riscv-arch-test/tree/act4?[0m[4;94mtab[0m[4;94m=[0m[4;94mreadme[0m[4;94m-ov-file#4-risc-v-s[0m
-[4;94mail-reference-model[0m
+Bundler 2.4.20 is running, but your lockfile was generated with 4.0.17. Installing Bundler 4.0.17 and restarting using that version.
+Fetching gem metadata from https://rubygems.org/.
+Fetching bundler 4.0.17
+Installing bundler 4.0.17
+Fetching gem metadata from https://rubygems.org/..........
+Fetching rake 13.4.2
+Installing rake 13.4.2
+Fetching concurrent-ruby 1.3.8
+Fetching base64 0.3.0
+Fetching Ascii85 2.0.1
+Fetching bigdecimal 4.1.2
+Fetching connection_pool 3.0.2
+Fetching drb 2.2.3
+Fetching i18n 1.15.2
+Fetching json 2.21.2
+Fetching logger 1.7.0
+Installing bigdecimal 4.1.2 with native extensions
+Fetching prism 1.9.0
+Fetching minitest 6.0.6
+Installing json 2.21.2 with native extensions
+Fetching securerandom 0.4.1
+Fetching tzinfo 2.0.6
+Fetching uri 1.1.1
+Fetching activesupport 8.1.3.1
+Fetching public_suffix 7.0.5
+Fetching addressable 2.9.0
+Installing prism 1.9.0 with native extensions
+Fetching afm 1.0.0
+Fetching asciidoctor 2.0.26
+Fetching rexml 3.4.4
+Fetching asciidoctor-diagram 3.2.1
+Fetching matrix 0.4.3
+Fetching pdf-core 0.9.0
+Fetching ttfunk 1.7.0
+Fetching prawn 2.4.0
+Fetching prawn-icon 3.0.0
+Fetching css_parser 1.22.0
+Fetching prawn-svg 0.34.2
+Fetching prawn-table 0.2.2
+Fetching hashery 2.1.2
+Fetching ruby-rc4 0.1.5
+Fetching pdf-reader 2.15.1
+Fetching prawn-templates 0.1.2
+Fetching polyglot 0.3.5
+Fetching treetop 1.6.12
+Fetching asciidoctor-pdf 2.3.24
+Fetching awesome_print 1.9.2
+Fetching highline 3.0.1
+Fetching commander 5.0.0
+Fetching ffi 1.17.4 (x86_64-linux-gnu)
+Fetching hana 1.3.7
+Fetching prettyprint 0.2.0
+Fetching pp 0.6.4
+Fetching sorbet-runtime 0.6.13393
+Fetching strings-ansi 0.2.0
+Fetching tty-cursor 0.7.1
+Fetching tty-screen 0.8.2
+Fetching unicode-display_width 2.6.0
+Fetching tty-progressbar 0.18.3
+Fetching idlc 0.1.6
+Fetching regexp_parser 2.12.0
+Fetching simpleidn 0.2.3
+Fetching json_schemer 2.5.0
+Fetching nkf 0.3.0
+Fetching numbers_and_words 1.0.3
+Installing nkf 0.3.0 with native extensions
+Fetching ostruct 0.6.3
+Fetching tty-color 0.6.0
+Fetching pastel 0.8.0
+Fetching rubyzip 3.4.1
+Fetching unicode_utils 1.4.0
+Fetching strings 0.2.1
+Fetching terminal-table 4.0.0
+Fetching thor 1.5.0
+Fetching tilt 2.8.0
+Fetching tty-command 0.10.1
+Fetching tty-exit 0.1.0
+Fetching tty-logger 0.6.0
+Fetching tty-option 0.3.0
+Fetching tty-table 0.12.0
+Fetching udb_helpers 0.1.3
+Fetching z3 0.0.20260727
+Fetching udb 0.1.15
+Fetching write_xlsx 1.15.0
+Fetching udb-gen 0.1.14
+Installing base64 0.3.0
+Installing Ascii85 2.0.1
+Installing connection_pool 3.0.2
+Installing drb 2.2.3
+Installing i18n 1.15.2
+Installing logger 1.7.0
+Installing concurrent-ruby 1.3.8
+Installing minitest 6.0.6
+Installing securerandom 0.4.1
+Installing tzinfo 2.0.6
+Installing uri 1.1.1
+Installing public_suffix 7.0.5
+Installing activesupport 8.1.3.1
+Installing addressable 2.9.0
+Installing afm 1.0.0
+Installing asciidoctor 2.0.26
+Installing rexml 3.4.4
+Installing asciidoctor-diagram 3.2.1
+Installing matrix 0.4.3
+Installing pdf-core 0.9.0
+Installing ttfunk 1.7.0
+Installing prawn 2.4.0
+Installing prawn-icon 3.0.0
+Installing css_parser 1.22.0
+Installing prawn-svg 0.34.2
+Installing prawn-table 0.2.2
+Installing hashery 2.1.2
+Installing ruby-rc4 0.1.5
+Installing pdf-reader 2.15.1
+Installing prawn-templates 0.1.2
+Installing polyglot 0.3.5
+Installing treetop 1.6.12
+Installing asciidoctor-pdf 2.3.24
+Installing awesome_print 1.9.2
+Installing highline 3.0.1
+Installing commander 5.0.0
+Installing ffi 1.17.4 (x86_64-linux-gnu)
+Installing hana 1.3.7
+Installing prettyprint 0.2.0
+Installing pp 0.6.4
+Installing sorbet-runtime 0.6.13393
+Installing strings-ansi 0.2.0
+Installing tty-cursor 0.7.1
+Installing tty-screen 0.8.2
+Installing unicode-display_width 2.6.0
+Installing tty-progressbar 0.18.3
+Installing idlc 0.1.6
+Installing regexp_parser 2.12.0
+Installing simpleidn 0.2.3
+Installing json_schemer 2.5.0
+Installing numbers_and_words 1.0.3
+Installing ostruct 0.6.3
+Installing tty-color 0.6.0
+Installing pastel 0.8.0
+Installing rubyzip 3.4.1
+Installing unicode_utils 1.4.0
+Installing strings 0.2.1
+Installing terminal-table 4.0.0
+Installing thor 1.5.0
+Installing tilt 2.8.0
+Installing tty-command 0.10.1
+Installing tty-exit 0.1.0
+Installing tty-logger 0.6.0
+Installing tty-option 0.3.0
+Installing tty-table 0.12.0
+Installing udb_helpers 0.1.3
+Installing z3 0.0.20260727
+Installing write_xlsx 1.15.0
+Installing udb-gen 0.1.14
+Installing udb 0.1.15 with native extensions
+Bundle complete! 4 Gemfile dependencies, 75 gems now installed.
+Bundled gems are installed into `/home/runner/.bundle`
+UDB gem missing or out of date; running 'bundle install'...
+
+✗ FAILED: UDB config validation (bluerv32-rv32im)
+  Output: /home/runner/work/bluerv32/bluerv32/build/rv32im/act4/work/bluerv32-rv32im/.validated
+  Error output:
+    UDB configuration validation failed for bluerv32-rv32im.yaml
+    [0m[2K[1Gℹ info    Merged architecture files written to /home/runner/.local/share/udb/0.1.15/gen/spec/_
+    [0m[2K[1Gℹ info    Resolved architecture files written to /home/runner/.local/share/udb/0.1.15/gen/resolved_spec/_
+    ℹ info    Constructing ConfiguredArchiture for bluerv32-rv32im
+    [0m[2K[1Gℹ info    Compiling global IDL     
+    [0m[2K[1GConfig bluerv32-rv32im is invalid
+    
+      * Parameter is required but missing: 'MUTABLE_MISA_M'
+
+  Action: validate_udb_config(/home/runner/work/bluerv32/bluerv32/build/rv32im/act4/config/bluerv32-rv32im.yaml, /home/runner/work/bluerv32/bluerv32/build/rv32im/act4/work/bluerv32-rv32im/.validated)
+✗ DUT prep failed: 1 task(s)
 make[2]: *** [Makefile:170: elfs] Error 1
 make[2]: Leaving directory '/tmp/riscv-arch-test'
 make[1]: *** [Makefile:98: act4] Error 2

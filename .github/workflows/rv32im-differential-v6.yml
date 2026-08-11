@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - .github/workflows/rv32im-differential-v6.yml
+      - tests/differential/**
 
 permissions:
   contents: write
@@ -111,7 +112,7 @@ jobs:
         run: |
           status=$(cat /tmp/rv32im-differential.status 2>/dev/null || printf '255')
           core_count=$(grep -c 'RV32_COMMIT ' /tmp/core.log 2>/dev/null || true)
-          spike_count=$(grep -Ec '0x[0-9a-fA-F]{16}[[:space:]]+\(0x[0-9a-fA-F]{8}\)' \
+          spike_count=$(grep -Ec '0x[0-9a-fA-F]{8,16}[[:space:]]+\(0x[0-9a-fA-F]{8}\)' \
             /tmp/spike.log 2>/dev/null || true)
           {
             printf 'run_id=%s\n' "$GITHUB_RUN_ID"

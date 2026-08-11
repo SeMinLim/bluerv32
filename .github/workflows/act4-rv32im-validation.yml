@@ -1,0 +1,170 @@
+name: Temporary ACT4 RV32IM Validation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/act4-rv32im-validation.yml
+      - tests/.act4-rv32im-trigger
+
+permissions:
+  contents: write
+
+jobs:
+  act4-rv32im:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Check out blueRV32
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Record validation run
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          cat > tests/.act4-rv32im-run <<EOF
+          run_id=${GITHUB_RUN_ID}
+          run_attempt=${GITHUB_RUN_ATTEMPT}
+          source_sha=${GITHUB_SHA}
+          source_ref=${GITHUB_REF}
+          started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          EOF
+          git add tests/.act4-rv32im-run
+          git commit -m 'Record temporary RV32IM ACT4 run [skip actions]'
+          git push origin HEAD:main
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            git \
+            libgmp-dev \
+            make \
+            python3 \
+            ruby-bundler \
+            ruby-full \
+            xz-utils
+          bundle config set --global path "$HOME/.bundle"
+
+      - name: Install LLVM 21
+        run: |
+          curl -fsSL https://apt.llvm.org/llvm.sh -o /tmp/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh 21 all
+          clang-21 --version
+          llvm-objcopy-21 --version
+          llvm-objdump-21 --version
+
+      - name: Install Bluespec Compiler 2026.01
+        run: |
+          curl -fsSL \
+            https://github.com/B-Lang-org/bsc/releases/download/2026.01/bsc-2026.01-ubuntu-24.04.tar.gz \
+            -o /tmp/bsc.tar.gz
+          echo '6d13db288cf268dc1331f05b277c414b4ff1c1ab9618a6526ba16ad29e484e43  /tmp/bsc.tar.gz' \
+            | sha256sum -c -
+          mkdir -p "$HOME/bsc"
+          tar xzf /tmp/bsc.tar.gz --directory="$HOME/bsc" --strip-components=1
+          echo "$HOME/bsc/bin" >> "$GITHUB_PATH"
+
+      - name: Install ACT4 framework
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          git clone --depth 1 \
+            https://github.com/riscv/riscv-arch-test.git \
+            /tmp/riscv-arch-test
+
+      - name: Install Sail RISC-V 0.13
+        run: |
+          mkdir -p "$HOME/riscv"
+          curl -fsSL \
+            https://github.com/riscv/sail-riscv/releases/download/0.13/sail-riscv-Linux-x86_64.tar.gz \
+            | tar xz --directory="$HOME/riscv" --strip-components=1
+          echo "$HOME/riscv/bin" >> "$GITHUB_PATH"
+
+      - name: Verify validation tools
+        run: |
+          bsc -v
+          clang-21 --version | head -n 1
+          llvm-objcopy-21 --version | head -n 1
+          llvm-objdump-21 --version | head -n 1
+          "$HOME/riscv/bin/sail_riscv_sim" --version
+          git -C /tmp/riscv-arch-test rev-parse HEAD
+
+      - name: Run repository lint
+        run: |
+          rm -rf .github/workflows
+          make lint
+
+      - name: Run ACT4 RV32IM certification tests
+        id: act4
+        env:
+          ACT4_DIR: /tmp/riscv-arch-test
+          ACT4_CC: clang-21
+          ACT4_OBJCOPY: llvm-objcopy-21
+          ACT4_OBJDUMP: llvm-objdump-21
+          ACT4_SAIL: /home/runner/riscv/bin/sail_riscv_sim
+          ACT4_JOBS: 2
+          ACT4_TIMEOUT: 300
+        run: |
+          set +e
+          set -o pipefail
+          make test-act4 PROFILE=rv32im 2>&1 | tee /tmp/act4-rv32im.log
+          status=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$status" > /tmp/act4-rv32im.status
+          test_count=0
+          if [[ -d build/rv32im/act4/work/bluerv32-rv32im/elfs ]]; then
+            test_count=$(find build/rv32im/act4/work/bluerv32-rv32im/elfs \
+              -type f -name '*.elf' | wc -l)
+          fi
+          printf '%s\n' "$test_count" > /tmp/act4-rv32im.test-count
+
+      - name: Upload ACT4 results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bluerv32-rv32im-act4-results
+          path: |
+            /tmp/act4-rv32im.log
+            /tmp/act4-rv32im.status
+            /tmp/act4-rv32im.test-count
+            build/rv32im/act4
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Publish ACT4 result
+        if: always()
+        run: |
+          status=$(cat /tmp/act4-rv32im.status 2>/dev/null || printf '255')
+          test_count=$(cat /tmp/act4-rv32im.test-count 2>/dev/null || printf '0')
+          {
+            printf 'run_id=%s\n' "$GITHUB_RUN_ID"
+            printf 'run_attempt=%s\n' "$GITHUB_RUN_ATTEMPT"
+            printf 'source_sha=%s\n' "$GITHUB_SHA"
+            printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            printf 'exit_status=%s\n' "$status"
+            printf 'test_count=%s\n' "$test_count"
+            printf '%s\n' '--- ACT4 LOG TAIL ---'
+            tail -n 400 /tmp/act4-rv32im.log 2>/dev/null || true
+          } > /tmp/act4-rv32im-result
+
+          git reset --hard "$GITHUB_SHA"
+          git clean -fdx
+          git pull --rebase origin main
+          cp /tmp/act4-rv32im-result tests/.act4-rv32im-result
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/.act4-rv32im-result
+          git commit -m 'Record temporary RV32IM ACT4 result [skip actions]'
+          git push origin HEAD:main
+
+      - name: Return ACT4 status
+        if: always()
+        run: exit "$(cat /tmp/act4-rv32im.status 2>/dev/null || printf '255')"

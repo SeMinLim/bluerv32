@@ -60,7 +60,7 @@ The software flow produces one exactly 64 KiB binary. The first 32 KiB is loaded
 - Yosys, `nextpnr-ecp5`, and `ecppack` for ULX3S synthesis
 - `ujprog` for ULX3S programming
 - Spike for optional differential testing
-- ACT4 and Sail RISC-V 0.13 for architectural certification testing
+- ACT4 and Sail RISC-V 0.13.1 for architectural certification testing
 
 On Ubuntu or Debian, the normal software flow can use:
 
@@ -102,7 +102,7 @@ make program PROFILE=rv32im BOARD=ulx3s
 
 ## Verification
 
-The blueRV32 RV32I and RV32IZmmul profiles have passed all applicable RISC-V Architectural Certification Tests (ACTs) using the official ACT4 framework. ACT4 is the current official framework for RISC-V architectural certification testing, replacing the deprecated RISCOF flow.
+The blueRV32 RV32I, RV32IZmmul, and RV32IM profiles have passed all applicable RISC-V Architectural Certification Tests (ACTs) using the official ACT4 framework. ACT4 is the current official framework for RISC-V architectural certification testing, replacing the deprecated RISCOF flow.
 
 ```sh
 make lint

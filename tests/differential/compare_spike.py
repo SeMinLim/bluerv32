@@ -8,7 +8,8 @@ CORE_PATTERN = re.compile(
 	r"RV32_COMMIT pc=([0-9a-fA-F]{8}) inst=([0-9a-fA-F]{8})"
 )
 SPIKE_PATTERN = re.compile(
-	r"0x([0-9a-fA-F]{16})\s+\(0x([0-9a-fA-F]{8})\)"
+	r"0x((?:[0-9a-fA-F]{8})|(?:[0-9a-fA-F]{16}))\s+"
+	r"\(0x([0-9a-fA-F]{8})\)"
 )
 
 
@@ -44,7 +45,10 @@ def main():
 		print( "No blueRV32 commit trace was found." )
 		return 1
 	if len(spikeTrace) < len(coreTrace):
-		print( "Spike produced fewer retired instructions than blueRV32." )
+		print(
+			"Spike produced fewer retired instructions than blueRV32: "
+			"core=%d spike=%d" % (len(coreTrace), len(spikeTrace))
+		)
 		return 1
 
 	for index, coreEntry in enumerate(coreTrace):
